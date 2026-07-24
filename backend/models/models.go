@@ -8,36 +8,35 @@ type Index struct {
 }
 
 type Artist struct {
-	ID            string   `json:"id"`
-	Image         string   `json:"image"`
-	Name          string   `json:"name"`
-	Members       []string `json:"members"`
-	Creation_date int      `json:"creationDate"`
-	First_album   string   `json:"firstAlbum"`
-	Locations     string   `json:"locations"`
-	Concert_dates string   `json:"concertDates"`
-	Relations     string   `json:"relations"`
+	ID           int      `json:"id"`
+	Image        string   `json:"image"`
+	Name         string   `json:"name"`
+	Members      []string `json:"members"`
+	CreationDate int      `json:"creationDate"`
+	FirstAlbum  string   `json:"firstAlbum"`
+	Locations    string   `json:"locations"`
+	ConcertDates string   `json:"concertDates"`
+	Relations    string   `json:"relations"`
 }
-
 
 type LocationsResponse struct {
 	Index []struct {
-		ID int `json:"id"`
+		ID        int      `json:"id"`
 		Locations []string `json:"locations"`
-		Dates string `json:"dates"`
+		Dates     string   `json:"dates"`
 	} `json:"index"`
 }
 
 type DatesResponse struct {
 	Index []struct {
-		ID int `json:"id"`
+		ID    int      `json:"id"`
 		Dates []string `json:"dates"`
 	} `json:"index"`
 }
 
 type RelationsResponse struct {
 	Index []struct {
-		ID int `json:"int"`
+		ID             int                 `json:"int"`
 		DatesLocations map[string][]string `json:"datesLocations"`
 	} `json:"index"`
 }
