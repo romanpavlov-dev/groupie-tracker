@@ -1,7 +1,15 @@
 package main
 
-import "fmt"
+import (
+	"groupie-tracker/backend/logics"
+	"log"
+	"net/http"
+)
 
 func main() {
-	fmt.Println("Hello world!")
+
+	http.HandleFunc("/", logics.ArtistsHandler)
+
+	log.Fatal(http.ListenAndServe(":1010", nil))
+
 }
