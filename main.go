@@ -8,7 +8,7 @@ import (
 
 func main() {
 
-	http.HandleFunc("/", logics.ArtistsHandler)
+	http.HandleFunc("/", logics.MainHandler)
 
 	log.Fatal(http.ListenAndServe(":1010", nil))
 
