@@ -94,12 +94,21 @@ func JsonToMap() {
 
 	datesmap := make(map[int][]string)
 	locationmap := make(map[int][]string)
-	for _, d := range dates.Index {
-		datesmap[d.ID] = d.Dates
-	}
-	for _, x := range location.Index {
-		locationmap[x.ID] = x.Locations
-	}
+	wg.Add(2)
+	go func() {
+		for _, d := range dates.Index { //вот тут можно применить горутины будто бы
+			datesmap[d.ID] = d.Dates
+		}
+		wg.Done()
+	}()
+	go func() {
+		for _, x := range location.Index {
+			locationmap[x.ID] = x.Locations
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
 
 	for _, a := range artists {
 		view := models.ArtistView{
