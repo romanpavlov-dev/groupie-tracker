@@ -2,8 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"groupie-tracker/backend/models"
-	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -21,16 +21,10 @@ func FetchJSON(link string, target interface{}) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return err
+		return fmt.Errorf("unexpected status %d for %s", resp.StatusCode, link)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-
-	if err != nil {
-		return err
-	}
-
-	if err := json.Unmarshal(body, target); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(target); err != nil { //more idiomatic, cuz unmarshall/marshall designed to work directly with the slice of bytes (ex. looking for the error)
 		return err
 	}
 
@@ -38,26 +32,39 @@ func FetchJSON(link string, target interface{}) error {
 
 }
 
-var Views []models.ArtistView
-var ViewsByID = make(map[int]models.ArtistView)
+type Store struct {
+	views     []models.ArtistView
+	viewsByID map[int]models.ArtistView
+}
 
-func JsonToMap() {
+func (s *Store) All() []models.ArtistView {
+	return s.views
+}
+
+func (s *Store) ByID(id int) (models.ArtistView, bool) {
+	v, ok := s.viewsByID[id]
+	return v, ok
+}
+
+func LoadStore() (*Store, error) {
 	// 	{"artists":"https://groupietrackers.herokuapp.com/api/artists",
 	// 	"locations":"https://groupietrackers.herokuapp.com/api/locations",
 	// 	"dates":"https://groupietrackers.herokuapp.com/api/dates",
 	// 	"relation":"https://groupietrackers.herokuapp.com/api/relation"}
+	var wg sync.WaitGroup
 
 	var index models.Index
-	var wg sync.WaitGroup
+	var artists []models.Artist
+	var location models.LocationsResponse
+	var dates models.DatesResponse
+	var relations models.RelationsResponse
 
 	if err := FetchJSON(baseURL, &index); err != nil {
 		log.Println(err)
-		return
+		return nil, err
 
 	}
-	wg.Add(3)
-
-	var artists []models.Artist
+	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
@@ -68,8 +75,6 @@ func JsonToMap() {
 		}
 	}()
 
-	var location models.LocationsResponse
-
 	go func() {
 		defer wg.Done()
 		if err := FetchJSON(index.Locations, &location); err != nil {
@@ -78,8 +83,6 @@ func JsonToMap() {
 			return
 		}
 	}()
-
-	var dates models.DatesResponse
 
 	go func() {
 		defer wg.Done()
@@ -90,11 +93,21 @@ func JsonToMap() {
 		}
 	}()
 
+	go func() {
+		defer wg.Done()
+		if err := FetchJSON(index.Relation, &relations); err != nil {
+			log.Println(err)
+			return
+		}
+	}()
+
 	wg.Wait()
 
 	datesmap := make(map[int][]string)
 	locationmap := make(map[int][]string)
-	wg.Add(2)
+	relationsByID := make(map[int]map[string][]string)
+
+	wg.Add(3)
 	go func() {
 		for _, d := range dates.Index { //вот тут можно применить горутины будто бы
 			datesmap[d.ID] = d.Dates
@@ -107,19 +120,31 @@ func JsonToMap() {
 		}
 		wg.Done()
 	}()
+	go func() {
+		for _, x := range relations.Index {
+			relationsByID[x.ID] = x.DatesLocations
+		}
+		wg.Done()
+	}()
 
 	wg.Wait()
 
+	views := make([]models.ArtistView, 0, len(artists))
+	viewsByID := make(map[int]models.ArtistView, len(artists))
+
 	for _, a := range artists {
 		view := models.ArtistView{
-			Artist:    a,
-			Locations: locationmap[a.ID],
-			Dates:     datesmap[a.ID],
+			Artist:       a,
+			Locations:    locationmap[a.ID],
+			Dates:        datesmap[a.ID],
+			DateLocation: relationsByID[a.ID],
 		}
 
-		Views = append(Views, view)
+		views = append(views, view)
 
-		ViewsByID[a.ID] = view
+		viewsByID[a.ID] = view
 	}
+
+	return &Store{views: views, viewsByID: viewsByID}, nil
 
 }
