@@ -1,0 +1,193 @@
+<!-- ============================================================
+     СТРАНИЦА ОДНОГО АРТИСТА
+     Сюда Go передаёт ОДИН ArtistView (не список!).
+     Поэтому здесь НЕТ внешнего цикла range — поля берём напрямую.
+
+     ВАЖНО: Go читает двойные фигурные скобки ВЕЗДЕ, даже внутри
+     HTML-комментариев. Поэтому в пояснениях я их не пишу,
+     иначе Go примет их за настоящую команду и выдаст ошибку.
+     ============================================================ -->
+
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Название вкладки подставляется динамически.
+       Откроешь Queen — на вкладке будет "Queen — Groupie Tracker" -->
+  <title>{{.Name}} — Groupie Tracker</title>
+
+  <style>
+
+    /* ---------- ОБЩИЕ НАСТРОЙКИ ----------
+       Такие же, как на главной, чтобы страницы выглядели одинаково */
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    /* ---------- БЕЛАЯ КАРТОЧКА ВСЕЙ СТРАНИЦЫ ----------
+       Весь контент лежит в одном белом блоке по центру экрана */
+    .page {
+      max-width: 800px;             /* не шире 800px — длинные строки читать неудобно */
+      margin: 0 auto;               /* auto по бокам = блок встаёт по центру экрана */
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 24px;                /* внутренний отступ, чтобы текст не липнул к краям */
+    }
+
+    /* ---------- ССЫЛКА НАЗАД ---------- */
+    .back {
+      display: inline-block;        /* чтобы работал margin снизу (у обычной ссылки он не работает) */
+      margin-bottom: 20px;
+      color: #555;
+      font-size: 14px;
+    }
+
+    h1 {
+      margin: 0 0 16px;             /* сверху 0, снизу 16px */
+    }
+
+    /* ---------- БОЛЬШОЕ ФОТО АРТИСТА ---------- */
+    .photo {
+      width: 100%;                  /* на всю ширину белого блока */
+      max-height: 360px;            /* но не выше 360px, иначе фото займёт весь экран */
+      object-fit: contain;            /* обрезать лишнее, не сплющивая картинку */
+      background: #fff;
+      border-radius: 4px;
+      display: block;               /* убрать зазор под картинкой */
+      margin-bottom: 24px;
+    }
+
+    /* ---------- ОДИН РАЗДЕЛ ИНФОРМАЦИИ ----------
+       (Состав, Локации, Даты — каждый такой блок) */
+    .section {
+      margin-bottom: 24px;          /* воздух между разделами */
+    }
+
+    /* заголовок раздела: маленький, серый, ЗАГЛАВНЫМИ */
+    .section h2 {
+      font-size: 15px;
+      text-transform: uppercase;    /* превратить текст в ЗАГЛАВНЫЕ БУКВЫ */
+      letter-spacing: 1px;          /* расстояние между буквами — выглядит аккуратнее */
+      color: #888;                  /* серый: это подпись, а не главный текст */
+      margin: 0 0 8px;
+    }
+
+    /* ---------- СПИСКИ ----------
+       ul = unordered list (маркированный список)
+       li = list item (один пункт списка) */
+    ul {
+      list-style: none;             /* убрать чёрные точки перед пунктами */
+      margin: 0;                    /* убрать стандартные отступы браузера */
+      padding: 0;                   /* убрать сдвиг списка вправо */
+    }
+
+    li {
+      padding: 6px 0;               /* отступ сверху и снизу внутри пункта */
+      border-bottom: 1px solid #eee;/* тонкая линия-разделитель под каждым пунктом */
+      font-size: 15px;
+    }
+  </style>
+</head>
+
+
+<body>
+
+  <!-- белый блок, внутри которого вся страница -->
+  <div class="page">
+
+    <!-- href="/" — вернуться на главную (там зарегистрирован MainHandler) -->
+    <a class="back" href="/">← Ко всем артистам</a>
+
+    <!-- ВАЖНО: здесь "." — это сразу один артист (ArtistView),
+         потому что ArtistHandler передал в шаблон одну структуру, а не список.
+         Поэтому имя выводим напрямую, без всякого цикла. -->
+    <h1>{{.Name}}</h1>
+
+    <img class="photo" src="{{.Image}}" alt="{{.Name}}">
+
+
+    <!-- ===== РАЗДЕЛ 1: обычные поля (одно значение) ===== -->
+    <div class="section">
+      <h2>Общая информация</h2>
+      <ul>
+        <!-- CreationDate и FirstAlbum — простые значения (число и строка),
+             их можно просто вывести, цикл не нужен -->
+        <li>Год основания: {{.CreationDate}}</li>
+        <li>Первый альбом: <span class="js-date" data-raw="{{.FirstAlbum}}">{{.FirstAlbum}}</span></li>
+      </ul>
+    </div>
+
+
+    <!-- ===== РАЗДЕЛ 2: списки (нужен цикл) =====
+         Members, Locations и Dates — это слайсы, то есть МНОГО значений.
+         Вывести их одной командой не получится — будет каша в одну строку.
+         Поэтому по каждому слайсу идём циклом и делаем отдельный пункт li. -->
+    <div class="section">
+      <h2>Состав</h2>
+      <ul>
+        <!-- Цикл по .Members: внутри цикла "." = одно имя участника.
+             Здесь точка — это уже НЕ артист, а конкретная строка из списка! -->
+        {{range .Members}}
+          <li>{{.}}</li>
+        {{end}}
+      </ul>
+    </div>
+
+    <div class="section">
+  <h2>Концерты</h2>
+  <ul>
+  {{range $location, $dates := .DateLocation}}
+    <li>
+      <strong class="js-location" data-raw="{{$location}}">{{$location}}</strong>
+      <ul>
+      {{range $dates}}
+        <li class="js-date" data-raw="{{.}}">{{.}}</li>
+      {{end}}
+      </ul>
+    </li>
+  {{end}}
+  </ul>
+</div>
+
+</body>
+<script>
+  function formatLocation(raw) {
+    return raw
+      .split('-')
+      .map(part =>
+        part
+          .split('_')
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ')
+      )
+      .join(', ');
+  }
+
+  function formatDate(raw) {
+    raw = raw.replace('*', '');
+    const [day, month, year] = raw.split('-');
+    const date = new Date(`${year}-${month}-${day}`);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  document.querySelectorAll('.js-location').forEach(el => {
+    el.textContent = formatLocation(el.dataset.raw);
+  });
+
+  document.querySelectorAll('.js-date').forEach(el => {
+    el.textContent = formatDate(el.dataset.raw);
+  });
+</script>
+</html>

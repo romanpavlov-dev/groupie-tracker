@@ -9,8 +9,9 @@ type Index struct {
 
 type ArtistView struct {
 	Artist
-	Locations []string
-	Dates     []string
+	Locations    []string
+	Dates        []string
+	DateLocation map[string][]string
 }
 
 type Artist struct {
@@ -41,8 +42,10 @@ type DatesResponse struct {
 }
 
 type RelationsResponse struct {
-	Index []struct {
-		ID             int                 `json:"int"`
-		DatesLocations map[string][]string `json:"datesLocations"`
-	} `json:"index"`
+	Index []ArtistRelation `json:"index"`
+}
+
+type ArtistRelation struct {
+	ID             int                 `json:"id"`
+	DatesLocations map[string][]string `json:"datesLocations"`
 }
