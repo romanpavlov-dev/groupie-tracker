@@ -1,264 +1,200 @@
+<!-- ============================================================
+     ГЛАВНАЯ СТРАНИЦА — список всех артистов
+     Сюда Go передаёт api.Views (СПИСОК артистов)
+
+     ВАЖНО: Go читает двойные фигурные скобки ВЕЗДЕ, даже внутри
+     HTML-комментариев. Поэтому в пояснениях ниже я НЕ пишу их,
+     иначе Go примет их за настоящую команду и выдаст ошибку.
+     ============================================================ -->
+
+<!-- DOCTYPE говорит браузеру: "это современный HTML5".
+     Должен стоять самой первой строкой файла. -->
 <!DOCTYPE html>
+
+<!-- html — корневой тег, внутри него вообще всё.
+     lang="ru" подсказывает браузеру язык страницы -->
 <html lang="ru">
+
+<!-- ============ HEAD ============
+     Служебная часть. НЕ отображается на странице.
+     Здесь настройки, заголовок вкладки и стили. -->
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Groupie Tracker — Артисты</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --stage: #0D0D0F;
-    --stage-alt: #17161A;
-    --paper: #F4EFE6;
-    --paper-dim: #E8E1D3;
-    --amber: #E8B33D;
-    --maroon: #8B2635;
-    --ink: #1A1815;
-    --mute: #706C64;
-    --line: #D8D0BE;
-  }
 
-  * { box-sizing: border-box; }
+  <!-- кодировка: чтобы русские буквы не превратились в кракозябры -->
+  <meta charset="UTF-8">
 
-  body {
-    margin: 0;
-    background: var(--stage);
-    background-image:
-      radial-gradient(circle at 15% 10%, rgba(232,179,61,0.08), transparent 40%),
-      radial-gradient(circle at 85% 90%, rgba(139,38,53,0.10), transparent 45%);
-    color: var(--paper);
-    font-family: 'Inter', sans-serif;
-    min-height: 100vh;
-  }
+  <!-- чтобы страница нормально выглядела на телефоне
+       (без этой строки телефон покажет уменьшенную десктопную версию) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  header {
-    padding: 64px 6vw 40px;
-    border-bottom: 1px solid rgba(244,239,230,0.12);
-  }
+  <!-- текст на вкладке браузера -->
+  <title>Groupie Tracker — Артисты</title>
 
-  .eyebrow {
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--amber);
-    font-weight: 600;
-    margin-bottom: 14px;
-  }
+  <!-- ============ CSS ============
+       Внутри style живут стили: как всё должно ВЫГЛЯДЕТЬ.
+       Формат правила:
+           селектор {  свойство: значение;  }
+       Селектор = "к чему применить".
+       .card  — точка означает "элемент с class=card"
+       body   — без точки означает "тег body" -->
+  <style>
 
-  h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(48px, 8vw, 96px);
-    line-height: 0.92;
-    margin: 0 0 12px;
-    letter-spacing: 0.01em;
-    color: var(--paper);
-  }
+    /* ---------- ОБЩИЕ НАСТРОЙКИ СТРАНИЦЫ ---------- */
+    body {
+      margin: 0;                    /* убрать отступ, который браузер ставит сам по умолчанию */
+      padding: 40px 20px;           /* внутренний отступ: 40px сверху/снизу, 20px слева/справа */
+      font-family: Arial, sans-serif;  /* шрифт. Если Arial нет — любой похожий */
+      background: #f5f5f5;          /* цвет фона. #f5f5f5 = очень светло-серый */
+      color: #222;                  /* цвет текста. #222 = почти чёрный */
+    }
 
-  header p.sub {
-    max-width: 520px;
-    color: rgba(244,239,230,0.6);
-    font-size: 15px;
-    line-height: 1.6;
-    margin: 0;
-  }
+    /* h1 — главный заголовок страницы */
+    h1 {
+      text-align: center;           /* текст по центру */
+      margin-bottom: 30px;          /* отступ СНАРУЖИ снизу — воздух до карточек */
+    }
 
-  main {
-    padding: 48px 6vw 96px;
-  }
+    /* ---------- СЕТКА КАРТОЧЕК ----------
+       display: grid включает режим сетки:
+       браузер сам разложит карточки по колонкам и строкам. */
+    .grid {
+      display: grid;
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 28px;
-  }
+      /* Самая сложная строка. Читается так:
+         repeat(auto-fill, ...) = "натолкай столько колонок, сколько влезет"
+         minmax(240px, 1fr)     = "колонка минимум 240px, максимум — занять свободное место"
+         Итог: на широком экране 4 колонки, на телефоне 1. Всё автоматически. */
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 
-  .artist {
-    position: relative;
-    background: var(--paper);
-    color: var(--ink);
-    border-radius: 4px;
-    overflow: hidden;
-    display: grid;
-    grid-template-columns: 96px 1fr;
-    box-shadow: 0 18px 40px -14px rgba(0,0,0,0.55);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-        text-decoration: none;
-    color: inherit;
-  }
+      gap: 20px;                    /* расстояние МЕЖДУ карточками */
+      max-width: 1100px;            /* сетка не шире 1100px, чтобы на большом мониторе не растягивалась */
+      margin: 0 auto;               /* 0 сверху/снизу, auto слева/справа = центрирование блока */
+    }
 
-  .artist:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 24px 48px -12px rgba(0,0,0,0.65);
-  }
+    /* ---------- ОДНА КАРТОЧКА ----------
+       Важно: карточка — это тег a, то есть ССЫЛКА.
+       Поэтому кликабельна вся карточка целиком, а не только текст. */
+    .card {
+      display: block;               /* по умолчанию ссылка ведёт себя как текст (строчный элемент).
+                                       block заставляет вести себя как прямоугольный блок */
+      background: #fff;             /* белый фон карточки */
+      border: 1px solid #ddd;       /* рамка: толщина 1px, сплошная, светло-серая */
+      border-radius: 6px;           /* скруглить углы на 6px */
+      overflow: hidden;             /* обрезать всё, что вылезает за скруглённые углы
+                                       (без этого углы картинки торчали бы наружу) */
+      text-decoration: none;        /* убрать подчёркивание, которое браузер рисует у ссылок */
+      color: inherit;               /* взять цвет текста от родителя, а не стандартный синий цвет ссылки */
+    }
 
-  /* ticket stub / perforated edge */
-  .stub {
-    position: relative;
-    background: var(--maroon);
-    background-image: linear-gradient(160deg, var(--maroon), #6E1D29);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+    /* :hover = "когда мышка наведена на элемент" */
+    .card:hover {
+      border-color: #888;           /* рамка темнеет — видно, что это кликабельно */
+    }
 
-  .stub .id {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 34px;
-    color: rgba(244,239,230,0.9);
-    letter-spacing: 0.04em;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-  }
+    /* картинка ВНУТРИ карточки.
+       Запись ".card img" означает: тег img, который лежит внутри .card */
+    .card img {
+      width: 100%;                  /* ширина = вся ширина карточки */
+      height: 180px;                /* фиксированная высота, чтобы все карточки были ровные */
+      object-fit: cover;            /* картинка заполняет блок и обрезается по краям,
+                                       НЕ сплющиваясь (без этого фото было бы искажённым) */
+      display: block;               /* убирает лишний зазор под картинкой */
+    }
 
-  .stub::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: -1px;
-    bottom: 0;
-    width: 0;
-    border-right: 2px dashed rgba(244,239,230,0.35);
-  }
+    /* блок с текстом под картинкой */
+    .card-body {
+      padding: 12px;                /* внутренний отступ, чтобы текст не липнул к рамке */
+    }
 
-  .stub .notch {
-    position: absolute;
-    right: -9px;
-    width: 18px;
-    height: 18px;
-    background: var(--stage);
-    border-radius: 50%;
-  }
-  .stub .notch.top { top: -9px; }
-  .stub .notch.bottom { bottom: -9px; }
+    .card h2 {
+      font-size: 18px;              /* размер шрифта имени артиста */
+      margin: 0 0 8px;              /* сверху 0, по бокам 0, снизу 8px */
+    }
 
-  .body {
-    padding: 22px 22px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: 0;
-  }
-
-  .thumb {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
-    border-radius: 3px;
-    border: 1px solid var(--line);
-    filter: grayscale(0.15);
-  }
-
-  .name {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 30px;
-    line-height: 1;
-    margin: 4px 0 0;
-    color: var(--ink);
-  }
-
-  .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 16px;
-    font-size: 12.5px;
-    color: var(--mute);
-    border-top: 1px dashed var(--line);
-    padding-top: 10px;
-    margin-top: 2px;
-  }
-
-  .meta span b {
-    color: var(--ink);
-    font-weight: 600;
-  }
-
-  .members {
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--ink);
-  }
-
-  .members .label {
-    display: block;
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--amber);
-    background: var(--ink);
-    display: inline-block;
-    padding: 2px 7px;
-    border-radius: 2px;
-    margin-bottom: 6px;
-    font-weight: 600;
-  }
-
-  footer {
-    text-align: center;
-    padding: 28px 6vw 48px;
-    font-size: 12px;
-    color: rgba(244,239,230,0.35);
-    letter-spacing: 0.08em;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .artist { transition: none; }
-  }
-
-  @media (max-width: 480px) {
-    .artist { grid-template-columns: 56px 1fr; }
-    .stub .id { font-size: 22px; }
-  }
-</style>
+    .card p {
+      margin: 0;                    /* убрать стандартные отступы у абзаца */
+      font-size: 14px;              /* помельче, чем имя */
+      color: #666;                  /* серый — второстепенная информация */
+    }
+  </style>
 </head>
+
+
+<!-- ============ BODY ============
+     Всё, что видит пользователь на экране. -->
 <body>
 
-<header>
-  <div class="eyebrow">Groupie Tracker · Каталог артистов</div>
-  <h1>ON&nbsp;TOUR</h1>
-  <p class="sub">Полный список групп и исполнителей: состав, дата основания, дебютный альбом и билеты на ближайшие площадки.</p>
-</header>
+  <!-- заголовок страницы -->
+  <h1>Артисты</h1>
 
-<main>
+  <!-- контейнер-сетка, внутрь него попадут все карточки -->
   <div class="grid">
+
+    <!-- ============ ЦИКЛ ПО АРТИСТАМ ============
+         Двойные фигурные скобки — это НЕ HTML, а команды шаблонизатора Go.
+         Браузер их никогда не видит: Go подставляет данные ещё на сервере.
+
+         Команда range = "пройди по списку и повтори всё до end для каждого элемента"
+
+         Точка "." — это данные, которые пришли из Go (api.Views, список артистов).
+         ВНУТРИ цикла точка меняет смысл: теперь "." = один текущий артист. -->
     {{range .}}
-        <a class="artist" href="/artist?id={{.ID}}">
-      <div class="stub">
-        <span class="notch top"></span>
-        <span class="id">#{{.ID}}</span>
-        <span class="notch bottom"></span>
-      </div>
-      <div class="body">
-        <img class="thumb" src="{{.Image}}" alt="{{.Name}}">
-        <h2 class="name">{{.Name}}</h2>
 
-        <div class="members">
-          <span class="label">Состав</span><br>
-          {{range $i, $m := .Members}}{{if $i}}, {{end}}{{$m}}{{end}}
+      <!-- href — адрес, куда ведёт ссылка.
+           Вместо .ID Go подставит реальный номер, получится /artist?id=7
+           Именно по этому id ArtistHandler найдёт артиста в мапе ViewsByID. -->
+      <a class="card" href="/artist?id={{.ID}}">
+
+        <!-- src — откуда взять картинку (ссылка на фото из API)
+             alt — текст, если картинка не загрузилась -->
+        <img src="{{.Image}}" alt="{{.Name}}">
+
+        <div class="card-body">
+          <!-- .Name, .CreationDate, .FirstAlbum — поля структуры ArtistView -->
+          <h2>{{.Name}}</h2>
+          <p>Основана: {{.CreationDate}}</p>
+          <p>Первый альбом: <span class="js-date" data-raw="{{.FirstAlbum}}">{{.FirstAlbum}}</span></p>
         </div>
 
-        <div class="meta">
-          <span>Основана: <b>{{.CreationDate}}</b></span>
-          <span>Первый альбом: <b>{{.FirstAlbum}}</b></span>
-        </div>
+      </a>
 
-        <div class="members">
-          <span class="label">Локации</span><br>
-          {{range $i, $loc := .Locations}}{{if $i}}, {{end}}{{$loc}}{{end}}
-        </div>
-
-        <div class="members">
-          <span class="label">Даты концертов</span><br>
-          {{range $i, $d := .Dates}}{{if $i}}, {{end}}{{$d}}{{end}}
-        </div>
-      </div>
-        </a>
+    <!-- end закрывает цикл range.
+         Каждый открытый range или if ОБЯЗАН иметь свой end, иначе Go выдаст ошибку. -->
     {{end}}
-  </div>
-</main>
 
-<footer>Groupie&nbsp;Tracker — данные предоставлены публичным API</footer>
+  </div>
 
 </body>
+<script>
+  function formatLocation(raw) {
+    return raw
+      .split('-')
+      .map(part =>
+        part
+          .split('_')
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ')
+      )
+      .join(', ');
+  }
+
+  function formatDate(raw) {
+    raw = raw.replace('*', '');
+    const [day, month, year] = raw.split('-');
+    const date = new Date(`${year}-${month}-${day}`);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  document.querySelectorAll('.js-location').forEach(el => {
+    el.textContent = formatLocation(el.dataset.raw);
+  });
+
+  document.querySelectorAll('.js-date').forEach(el => {
+    el.textContent = formatDate(el.dataset.raw);
+  });
+</script>
 </html>

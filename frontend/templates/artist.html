@@ -1,262 +1,193 @@
+<!-- ============================================================
+     СТРАНИЦА ОДНОГО АРТИСТА
+     Сюда Go передаёт ОДИН ArtistView (не список!).
+     Поэтому здесь НЕТ внешнего цикла range — поля берём напрямую.
+
+     ВАЖНО: Go читает двойные фигурные скобки ВЕЗДЕ, даже внутри
+     HTML-комментариев. Поэтому в пояснениях я их не пишу,
+     иначе Go примет их за настоящую команду и выдаст ошибку.
+     ============================================================ -->
+
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Groupie Tracker — Артисты</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --stage: #0D0D0F;
-    --stage-alt: #17161A;
-    --paper: #F4EFE6;
-    --paper-dim: #E8E1D3;
-    --amber: #E8B33D;
-    --maroon: #8B2635;
-    --ink: #1A1815;
-    --mute: #706C64;
-    --line: #D8D0BE;
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  * { box-sizing: border-box; }
+  <!-- Название вкладки подставляется динамически.
+       Откроешь Queen — на вкладке будет "Queen — Groupie Tracker" -->
+  <title>{{.Name}} — Groupie Tracker</title>
 
-  body {
-    margin: 0;
-    background: var(--stage);
-    background-image:
-      radial-gradient(circle at 15% 10%, rgba(232,179,61,0.08), transparent 40%),
-      radial-gradient(circle at 85% 90%, rgba(139,38,53,0.10), transparent 45%);
-    color: var(--paper);
-    font-family: 'Inter', sans-serif;
-    min-height: 100vh;
-  }
+  <style>
 
-  header {
-    padding: 64px 6vw 40px;
-    border-bottom: 1px solid rgba(244,239,230,0.12);
-  }
+    /* ---------- ОБЩИЕ НАСТРОЙКИ ----------
+       Такие же, как на главной, чтобы страницы выглядели одинаково */
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
 
-  .eyebrow {
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--amber);
-    font-weight: 600;
-    margin-bottom: 14px;
-  }
+    /* ---------- БЕЛАЯ КАРТОЧКА ВСЕЙ СТРАНИЦЫ ----------
+       Весь контент лежит в одном белом блоке по центру экрана */
+    .page {
+      max-width: 800px;             /* не шире 800px — длинные строки читать неудобно */
+      margin: 0 auto;               /* auto по бокам = блок встаёт по центру экрана */
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 24px;                /* внутренний отступ, чтобы текст не липнул к краям */
+    }
 
-  h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(48px, 8vw, 96px);
-    line-height: 0.92;
-    margin: 0 0 12px;
-    letter-spacing: 0.01em;
-    color: var(--paper);
-  }
+    /* ---------- ССЫЛКА НАЗАД ---------- */
+    .back {
+      display: inline-block;        /* чтобы работал margin снизу (у обычной ссылки он не работает) */
+      margin-bottom: 20px;
+      color: #555;
+      font-size: 14px;
+    }
 
-  header p.sub {
-    max-width: 520px;
-    color: rgba(244,239,230,0.6);
-    font-size: 15px;
-    line-height: 1.6;
-    margin: 0;
-  }
+    h1 {
+      margin: 0 0 16px;             /* сверху 0, снизу 16px */
+    }
 
-  main {
-    padding: 48px 6vw 96px;
-  }
+    /* ---------- БОЛЬШОЕ ФОТО АРТИСТА ---------- */
+    .photo {
+      width: 100%;                  /* на всю ширину белого блока */
+      max-height: 360px;            /* но не выше 360px, иначе фото займёт весь экран */
+      object-fit: contain;            /* обрезать лишнее, не сплющивая картинку */
+      background: #fff;
+      border-radius: 4px;
+      display: block;               /* убрать зазор под картинкой */
+      margin-bottom: 24px;
+    }
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 28px;
-  }
+    /* ---------- ОДИН РАЗДЕЛ ИНФОРМАЦИИ ----------
+       (Состав, Локации, Даты — каждый такой блок) */
+    .section {
+      margin-bottom: 24px;          /* воздух между разделами */
+    }
 
-  .artist {
-    position: relative;
-    background: var(--paper);
-    color: var(--ink);
-    border-radius: 4px;
-    overflow: hidden;
-    display: grid;
-    grid-template-columns: 96px 1fr;
-    box-shadow: 0 18px 40px -14px rgba(0,0,0,0.55);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-  }
+    /* заголовок раздела: маленький, серый, ЗАГЛАВНЫМИ */
+    .section h2 {
+      font-size: 15px;
+      text-transform: uppercase;    /* превратить текст в ЗАГЛАВНЫЕ БУКВЫ */
+      letter-spacing: 1px;          /* расстояние между буквами — выглядит аккуратнее */
+      color: #888;                  /* серый: это подпись, а не главный текст */
+      margin: 0 0 8px;
+    }
 
-  .artist:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 24px 48px -12px rgba(0,0,0,0.65);
-  }
+    /* ---------- СПИСКИ ----------
+       ul = unordered list (маркированный список)
+       li = list item (один пункт списка) */
+    ul {
+      list-style: none;             /* убрать чёрные точки перед пунктами */
+      margin: 0;                    /* убрать стандартные отступы браузера */
+      padding: 0;                   /* убрать сдвиг списка вправо */
+    }
 
-  /* ticket stub / perforated edge */
-  .stub {
-    position: relative;
-    background: var(--maroon);
-    background-image: linear-gradient(160deg, var(--maroon), #6E1D29);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .stub .id {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 34px;
-    color: rgba(244,239,230,0.9);
-    letter-spacing: 0.04em;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-  }
-
-  .stub::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: -1px;
-    bottom: 0;
-    width: 0;
-    border-right: 2px dashed rgba(244,239,230,0.35);
-  }
-
-  .stub .notch {
-    position: absolute;
-    right: -9px;
-    width: 18px;
-    height: 18px;
-    background: var(--stage);
-    border-radius: 50%;
-  }
-  .stub .notch.top { top: -9px; }
-  .stub .notch.bottom { bottom: -9px; }
-
-  .body {
-    padding: 22px 22px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: 0;
-  }
-
-  .thumb {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
-    border-radius: 3px;
-    border: 1px solid var(--line);
-    filter: grayscale(0.15);
-  }
-
-  .name {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 30px;
-    line-height: 1;
-    margin: 4px 0 0;
-    color: var(--ink);
-  }
-
-  .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 16px;
-    font-size: 12.5px;
-    color: var(--mute);
-    border-top: 1px dashed var(--line);
-    padding-top: 10px;
-    margin-top: 2px;
-  }
-
-  .meta span b {
-    color: var(--ink);
-    font-weight: 600;
-  }
-
-  .members {
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--ink);
-  }
-
-  .members .label {
-    display: block;
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--amber);
-    background: var(--ink);
-    display: inline-block;
-    padding: 2px 7px;
-    border-radius: 2px;
-    margin-bottom: 6px;
-    font-weight: 600;
-  }
-
-  footer {
-    text-align: center;
-    padding: 28px 6vw 48px;
-    font-size: 12px;
-    color: rgba(244,239,230,0.35);
-    letter-spacing: 0.08em;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .artist { transition: none; }
-  }
-
-  @media (max-width: 480px) {
-    .artist { grid-template-columns: 56px 1fr; }
-    .stub .id { font-size: 22px; }
-  }
-</style>
+    li {
+      padding: 6px 0;               /* отступ сверху и снизу внутри пункта */
+      border-bottom: 1px solid #eee;/* тонкая линия-разделитель под каждым пунктом */
+      font-size: 15px;
+    }
+  </style>
 </head>
+
+
 <body>
 
-<header>
-  <div class="eyebrow">Groupie Tracker · Каталог артистов</div>
-  <h1>ON&nbsp;TOUR</h1>
-  <p class="sub">Полный список групп и исполнителей: состав, дата основания, дебютный альбом и билеты на ближайшие площадки.</p>
-</header>
+  <!-- белый блок, внутри которого вся страница -->
+  <div class="page">
 
-<main>
-  <div class="grid">
-  
-    <div class="artist">
-      <div class="stub">
-        <span class="notch top"></span>
-        <span class="id">#{{.ID}}</span>
-        <span class="notch bottom"></span>
-      </div>
-      <div class="body">
-        <img class="thumb" src="{{.Image}}" alt="{{.Name}}">
-        <h2 class="name">{{.Name}}</h2>
+    <!-- href="/" — вернуться на главную (там зарегистрирован MainHandler) -->
+    <a class="back" href="/">← Ко всем артистам</a>
 
-        <div class="members">
-          <span class="label">Состав</span><br>
-          {{range $i, $m := .Members}}{{if $i}}, {{end}}{{$m}}{{end}}
-        </div>
+    <!-- ВАЖНО: здесь "." — это сразу один артист (ArtistView),
+         потому что ArtistHandler передал в шаблон одну структуру, а не список.
+         Поэтому имя выводим напрямую, без всякого цикла. -->
+    <h1>{{.Name}}</h1>
 
-        <div class="meta">
-          <span>Основана: <b>{{.CreationDate}}</b></span>
-          <span>Первый альбом: <b>{{.FirstAlbum}}</b></span>
-        </div>
+    <img class="photo" src="{{.Image}}" alt="{{.Name}}">
 
-        <div class="members">
-          <span class="label">Локации</span><br>
-          {{range $i, $loc := .Locations}}{{if $i}}, {{end}}{{$loc}}{{end}}
-        </div>
 
-        <div class="members">
-          <span class="label">Даты концертов</span><br>
-          {{range $i, $d := .Dates}}{{if $i}}, {{end}}{{$d}}{{end}}
-        </div>
-      </div>
+    <!-- ===== РАЗДЕЛ 1: обычные поля (одно значение) ===== -->
+    <div class="section">
+      <h2>Общая информация</h2>
+      <ul>
+        <!-- CreationDate и FirstAlbum — простые значения (число и строка),
+             их можно просто вывести, цикл не нужен -->
+        <li>Год основания: {{.CreationDate}}</li>
+        <li>Первый альбом: <span class="js-date" data-raw="{{.FirstAlbum}}">{{.FirstAlbum}}</span></li>
+      </ul>
     </div>
-    
-  </div>
-</main>
 
-<footer>Groupie&nbsp;Tracker — данные предоставлены публичным API</footer>
+
+    <!-- ===== РАЗДЕЛ 2: списки (нужен цикл) =====
+         Members, Locations и Dates — это слайсы, то есть МНОГО значений.
+         Вывести их одной командой не получится — будет каша в одну строку.
+         Поэтому по каждому слайсу идём циклом и делаем отдельный пункт li. -->
+    <div class="section">
+      <h2>Состав</h2>
+      <ul>
+        <!-- Цикл по .Members: внутри цикла "." = одно имя участника.
+             Здесь точка — это уже НЕ артист, а конкретная строка из списка! -->
+        {{range .Members}}
+          <li>{{.}}</li>
+        {{end}}
+      </ul>
+    </div>
+
+    <div class="section">
+  <h2>Концерты</h2>
+  <ul>
+  {{range $location, $dates := .DateLocation}}
+    <li>
+      <strong class="js-location" data-raw="{{$location}}">{{$location}}</strong>
+      <ul>
+      {{range $dates}}
+        <li class="js-date" data-raw="{{.}}">{{.}}</li>
+      {{end}}
+      </ul>
+    </li>
+  {{end}}
+  </ul>
+</div>
 
 </body>
+<script>
+  function formatLocation(raw) {
+    return raw
+      .split('-')
+      .map(part =>
+        part
+          .split('_')
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ')
+      )
+      .join(', ');
+  }
+
+  function formatDate(raw) {
+    raw = raw.replace('*', '');
+    const [day, month, year] = raw.split('-');
+    const date = new Date(`${year}-${month}-${day}`);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  document.querySelectorAll('.js-location').forEach(el => {
+    el.textContent = formatLocation(el.dataset.raw);
+  });
+
+  document.querySelectorAll('.js-date').forEach(el => {
+    el.textContent = formatDate(el.dataset.raw);
+  });
+</script>
 </html>
