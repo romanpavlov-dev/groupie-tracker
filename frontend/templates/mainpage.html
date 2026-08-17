@@ -1,171 +1,385 @@
 <!-- ============================================================
-     ГЛАВНАЯ СТРАНИЦА — список всех артистов
-     Сюда Go передаёт api.Views (СПИСОК артистов)
-
-     ВАЖНО: Go читает двойные фигурные скобки ВЕЗДЕ, даже внутри
-     HTML-комментариев. Поэтому в пояснениях ниже я НЕ пишу их,
-     иначе Go примет их за настоящую команду и выдаст ошибку.
+     ГЛАВНАЯ СТРАНИЦА — список всех артистов + панель фильтров
+     Сюда Go передаёт api.Views (СПИСОК артистов) при первой загрузке.
+     Дальше фильтры работают через JS: fetch('/api/filter?...') без
+     перезагрузки страницы.
      ============================================================ -->
 
-<!-- DOCTYPE говорит браузеру: "это современный HTML5".
-     Должен стоять самой первой строкой файла. -->
 <!DOCTYPE html>
-
-<!-- html — корневой тег, внутри него вообще всё.
-     lang="ru" подсказывает браузеру язык страницы -->
 <html lang="ru">
 
-<!-- ============ HEAD ============
-     Служебная часть. НЕ отображается на странице.
-     Здесь настройки, заголовок вкладки и стили. -->
 <head>
-
-  <!-- кодировка: чтобы русские буквы не превратились в кракозябры -->
   <meta charset="UTF-8">
-
-  <!-- чтобы страница нормально выглядела на телефоне
-       (без этой строки телефон покажет уменьшенную десктопную версию) -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- текст на вкладке браузера -->
   <title>Groupie Tracker — Артисты</title>
 
-  <!-- ============ CSS ============
-       Внутри style живут стили: как всё должно ВЫГЛЯДЕТЬ.
-       Формат правила:
-           селектор {  свойство: значение;  }
-       Селектор = "к чему применить".
-       .card  — точка означает "элемент с class=card"
-       body   — без точки означает "тег body" -->
   <style>
 
     /* ---------- ОБЩИЕ НАСТРОЙКИ СТРАНИЦЫ ---------- */
     body {
-      margin: 0;                    /* убрать отступ, который браузер ставит сам по умолчанию */
-      padding: 40px 20px;           /* внутренний отступ: 40px сверху/снизу, 20px слева/справа */
-      font-family: Arial, sans-serif;  /* шрифт. Если Arial нет — любой похожий */
-      background: #f5f5f5;          /* цвет фона. #f5f5f5 = очень светло-серый */
-      color: #222;                  /* цвет текста. #222 = почти чёрный */
+      margin: 0;
+      padding: 40px 20px;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
     }
 
-    /* h1 — главный заголовок страницы */
     h1 {
-      text-align: center;           /* текст по центру */
-      margin-bottom: 30px;          /* отступ СНАРУЖИ снизу — воздух до карточек */
+      text-align: center;
+      margin-bottom: 30px;
     }
 
-    /* ---------- СЕТКА КАРТОЧЕК ----------
-       display: grid включает режим сетки:
-       браузер сам разложит карточки по колонкам и строкам. */
+    /* ---------- ОБЩАЯ ОБЁРТКА: фильтры слева, карточки справа ---------- */
+    .layout {
+      display: flex;
+      align-items: flex-start;
+      gap: 24px;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+
+    /* ---------- ПАНЕЛЬ ФИЛЬТРОВ ---------- */
+    .filters {
+      flex: 0 0 260px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 18px;
+      position: sticky;
+      top: 20px;
+    }
+
+    .filters h3 {
+      font-size: 15px;
+      margin: 0 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .filter-group {
+      margin-bottom: 22px;
+    }
+
+    .filter-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .filter-values {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .filter-values span {
+      font-size: 12px;
+      font-weight: 600;
+      color: #2f6fed;
+      background: #eaf1ff;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* ---------- ДВОЙНОЙ СЛАЙДЕР ----------
+       Два <input type=range>, наложенных друг на друга, плюс
+       фоновая полоска-трек и цветная заливка между бегунками
+       (.range-track / .range-fill) — их положение и ширину
+       пересчитывает JS в wireDualSlider() при каждом движении. */
+    .dual-slider {
+      position: relative;
+      height: 28px;
+    }
+
+    .range-track {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 12px;
+      height: 4px;
+      background: #e2e2e2;
+      border-radius: 2px;
+    }
+
+    .range-fill {
+      position: absolute;
+      top: 12px;
+      height: 4px;
+      background: #2f6fed;
+      border-radius: 2px;
+    }
+
+    .dual-slider input[type="range"] {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 11px;
+      width: 100%;
+      margin: 0;
+      z-index: 2;
+      pointer-events: none;
+      -webkit-appearance: none;
+      background: transparent;
+    }
+
+    /* сам системный трек делаем прозрачным — видимую линию рисуют
+       .range-track (серый фон) и .range-fill (синяя заливка) выше */
+    .dual-slider input[type="range"]::-webkit-slider-runnable-track {
+      height: 4px;
+      background: transparent;
+    }
+
+    .dual-slider input[type="range"]::-moz-range-track {
+      height: 4px;
+      background: transparent;
+    }
+
+    .dual-slider input[type="range"]::-webkit-slider-thumb {
+      pointer-events: auto;
+      -webkit-appearance: none;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #2f6fed;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+      margin-top: -6.5px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .dual-slider input[type="range"]::-moz-range-thumb {
+      pointer-events: auto;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #2f6fed;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .dual-slider input[type="range"]:hover::-webkit-slider-thumb,
+    .dual-slider input[type="range"]:focus::-webkit-slider-thumb {
+      transform: scale(1.15);
+      box-shadow: 0 2px 6px rgba(47, 111, 237, 0.4);
+    }
+
+    .dual-slider input[type="range"]:hover::-moz-range-thumb,
+    .dual-slider input[type="range"]:focus::-moz-range-thumb {
+      transform: scale(1.15);
+      box-shadow: 0 2px 6px rgba(47, 111, 237, 0.4);
+    }
+
+    .dual-slider input[type="range"]:focus {
+      outline: none;
+    }
+
+    /* ---------- ЧЕКБОКСЫ (участники / локации) ---------- */
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      padding: 4px 0;
+      cursor: pointer;
+    }
+
+    .checkbox-row input {
+      cursor: pointer;
+    }
+
+    .location-search {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    .location-list {
+      max-height: 160px;
+      overflow-y: auto;
+      border-top: 1px solid #eee;
+      padding-top: 4px;
+    }
+
+    .filters-reset {
+      width: 100%;
+      padding: 8px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #f9f9f9;
+      cursor: pointer;
+    }
+
+    .filters-reset:hover {
+      background: #f0f0f0;
+    }
+
+    /* ---------- СЕТКА КАРТОЧЕК ---------- */
+    .results {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .results-count {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 14px;
+    }
+
     .grid {
       display: grid;
-
-      /* Самая сложная строка. Читается так:
-         repeat(auto-fill, ...) = "натолкай столько колонок, сколько влезет"
-         minmax(240px, 1fr)     = "колонка минимум 240px, максимум — занять свободное место"
-         Итог: на широком экране 4 колонки, на телефоне 1. Всё автоматически. */
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-
-      gap: 20px;                    /* расстояние МЕЖДУ карточками */
-      max-width: 1100px;            /* сетка не шире 1100px, чтобы на большом мониторе не растягивалась */
-      margin: 0 auto;               /* 0 сверху/снизу, auto слева/справа = центрирование блока */
+      gap: 20px;
     }
 
-    /* ---------- ОДНА КАРТОЧКА ----------
-       Важно: карточка — это тег a, то есть ССЫЛКА.
-       Поэтому кликабельна вся карточка целиком, а не только текст. */
+    .empty-state {
+      text-align: center;
+      color: #888;
+      padding: 60px 20px;
+      font-size: 15px;
+    }
+
     .card {
-      display: block;               /* по умолчанию ссылка ведёт себя как текст (строчный элемент).
-                                       block заставляет вести себя как прямоугольный блок */
-      background: #fff;             /* белый фон карточки */
-      border: 1px solid #ddd;       /* рамка: толщина 1px, сплошная, светло-серая */
-      border-radius: 6px;           /* скруглить углы на 6px */
-      overflow: hidden;             /* обрезать всё, что вылезает за скруглённые углы
-                                       (без этого углы картинки торчали бы наружу) */
-      text-decoration: none;        /* убрать подчёркивание, которое браузер рисует у ссылок */
-      color: inherit;               /* взять цвет текста от родителя, а не стандартный синий цвет ссылки */
+      display: block;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
     }
 
-    /* :hover = "когда мышка наведена на элемент" */
     .card:hover {
-      border-color: #888;           /* рамка темнеет — видно, что это кликабельно */
+      border-color: #888;
     }
 
-    /* картинка ВНУТРИ карточки.
-       Запись ".card img" означает: тег img, который лежит внутри .card */
     .card img {
-      width: 100%;                  /* ширина = вся ширина карточки */
-      height: 180px;                /* фиксированная высота, чтобы все карточки были ровные */
-      object-fit: cover;            /* картинка заполняет блок и обрезается по краям,
-                                       НЕ сплющиваясь (без этого фото было бы искажённым) */
-      display: block;               /* убирает лишний зазор под картинкой */
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+      background: #eee;
     }
 
-    /* блок с текстом под картинкой */
     .card-body {
-      padding: 12px;                /* внутренний отступ, чтобы текст не липнул к рамке */
+      padding: 12px;
     }
 
     .card h2 {
-      font-size: 18px;              /* размер шрифта имени артиста */
-      margin: 0 0 8px;              /* сверху 0, по бокам 0, снизу 8px */
+      font-size: 18px;
+      margin: 0 0 8px;
     }
 
     .card p {
-      margin: 0;                    /* убрать стандартные отступы у абзаца */
-      font-size: 14px;              /* помельче, чем имя */
-      color: #666;                  /* серый — второстепенная информация */
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+
+    /* ---------- МОБИЛЬНАЯ ВЁРСТКА ---------- */
+    @media (max-width: 800px) {
+      .layout {
+        flex-direction: column;
+      }
+      .filters {
+        flex: none;
+        width: 100%;
+        box-sizing: border-box;
+        position: static;
+      }
     }
   </style>
 </head>
 
-
-<!-- ============ BODY ============
-     Всё, что видит пользователь на экране. -->
 <body>
 
-  <!-- заголовок страницы -->
   <h1>Артисты</h1>
 
-  <!-- контейнер-сетка, внутрь него попадут все карточки -->
-  <div class="grid">
+  <div class="layout">
 
-    <!-- ============ ЦИКЛ ПО АРТИСТАМ ============
-         Двойные фигурные скобки — это НЕ HTML, а команды шаблонизатора Go.
-         Браузер их никогда не видит: Go подставляет данные ещё на сервере.
+    <!-- ============ ПАНЕЛЬ ФИЛЬТРОВ ============ -->
+    <aside class="filters">
 
-         Команда range = "пройди по списку и повтори всё до end для каждого элемента"
-
-         Точка "." — это данные, которые пришли из Go (api.Views, список артистов).
-         ВНУТРИ цикла точка меняет смысл: теперь "." = один текущий артист. -->
-    {{range .}}
-
-      <!-- href — адрес, куда ведёт ссылка.
-           Вместо .ID Go подставит реальный номер, получится /artist?id=7
-           Именно по этому id ArtistHandler найдёт артиста в мапе ViewsByID. -->
-      <a class="card" href="/artist?id={{.ID}}">
-
-        <!-- src — откуда взять картинку (ссылка на фото из API)
-             alt — текст, если картинка не загрузилась -->
-        <img src="{{.Image}}" alt="{{.Name}}">
-
-        <div class="card-body">
-          <!-- .Name, .CreationDate, .FirstAlbum — поля структуры ArtistView -->
-          <h2>{{.Name}}</h2>
-          <p>Основана: {{.CreationDate}}</p>
-          <p>Первый альбом: <span class="js-date" data-raw="{{.FirstAlbum}}">{{.FirstAlbum}}</span></p>
+      <div class="filter-group">
+        <h3>Год основания</h3>
+        <div class="filter-values">
+          <span id="creationMinLabel">—</span>
+          <span id="creationMaxLabel">—</span>
         </div>
+        <div class="dual-slider" id="creationSlider">
+          <div class="range-track"></div>
+          <div class="range-fill" id="creationFill"></div>
+          <input type="range" id="creationMin">
+          <input type="range" id="creationMax">
+        </div>
+      </div>
 
-      </a>
+      <div class="filter-group">
+        <h3>Первый альбом</h3>
+        <div class="filter-values">
+          <span id="albumMinLabel">—</span>
+          <span id="albumMaxLabel">—</span>
+        </div>
+        <div class="dual-slider" id="albumSlider">
+          <div class="range-track"></div>
+          <div class="range-fill" id="albumFill"></div>
+          <input type="range" id="albumMin">
+          <input type="range" id="albumMax">
+        </div>
+      </div>
 
-    <!-- end закрывает цикл range.
-         Каждый открытый range или if ОБЯЗАН иметь свой end, иначе Go выдаст ошибку. -->
-    {{end}}
+      <div class="filter-group">
+        <h3>Участников</h3>
+        <div id="membersGroup"></div>
+      </div>
+
+      <div class="filter-group">
+        <h3>Локации концертов</h3>
+        <input type="text" class="location-search" id="locationSearch" placeholder="Поиск локации...">
+        <div class="location-list" id="locationList"></div>
+      </div>
+
+      <div class="filter-group">
+        <button class="filters-reset" id="resetFilters">Сбросить фильтры</button>
+      </div>
+
+    </aside>
+
+    <!-- ============ РЕЗУЛЬТАТЫ ============ -->
+    <div class="results">
+      <div class="results-count" id="resultsCount"></div>
+      <div class="grid" id="grid">
+        <!-- ============ ЦИКЛ ПО АРТИСТАМ (первая загрузка страницы) ============
+             Go рендерит это один раз при первом открытии страницы.
+             Дальше, при изменении фильтров, JS полностью заменяет
+             содержимое #grid — этот блок используется только для
+             самого первого рендера (без него страница была бы
+             пустой на секунду, пока не отработает fetch). -->
+        {{range .}}
+          <a class="card" href="/artist?id={{.ID}}">
+            <img src="{{.Image}}" alt="{{.Name}}">
+            <div class="card-body">
+              <h2>{{.Name}}</h2>
+              <p>Основана: {{.CreationDate}}</p>
+              <p>Первый альбом: <span class="js-date" data-raw="{{.FirstAlbum}}">{{.FirstAlbum}}</span></p>
+            </div>
+          </a>
+        {{end}}
+      </div>
+    </div>
 
   </div>
 
-</body>
 <script>
+  /* ============================================================
+     УТИЛИТЫ ФОРМАТИРОВАНИЯ (те же, что были в исходном файле)
+     ============================================================ */
+
   function formatLocation(raw) {
     return raw
       .split('-')
@@ -178,10 +392,18 @@
       .join(', ');
   }
 
+  // raw в формате DD-MM-YYYY, возможно с "*" на конце — как отдаёт Go-бэкенд
+  function cleanDate(raw) {
+    return raw.replace('*', '');
+  }
+
+  function parseDDMMYYYY(raw) {
+    const [day, month, year] = cleanDate(raw).split('-');
+    return new Date(`${year}-${month}-${day}`);
+  }
+
   function formatDate(raw) {
-    raw = raw.replace('*', '');
-    const [day, month, year] = raw.split('-');
-    const date = new Date(`${year}-${month}-${day}`);
+    const date = parseDDMMYYYY(raw);
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -189,12 +411,346 @@
     });
   }
 
-  document.querySelectorAll('.js-location').forEach(el => {
-    el.textContent = formatLocation(el.dataset.raw);
-  });
+  // обратное преобразование: Date -> "DD-MM-YYYY", как ждёт бэкенд в query-параметрах
+  function toDDMMYYYY(date) {
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}-${m}-${y}`;
+  }
 
-  document.querySelectorAll('.js-date').forEach(el => {
-    el.textContent = formatDate(el.dataset.raw);
-  });
+  function applyFormatting(root) {
+    root.querySelectorAll('.js-location').forEach(el => {
+      el.textContent = formatLocation(el.dataset.raw);
+    });
+    root.querySelectorAll('.js-date').forEach(el => {
+      el.textContent = formatDate(el.dataset.raw);
+    });
+  }
+
+  /* ============================================================
+     РЕНДЕР КАРТОЧЕК (то же самое, что делает Go-шаблон,
+     только на JS — используется при обновлении по фильтрам)
+     ============================================================ */
+
+  function renderCard(artist) {
+    const a = document.createElement('a');
+    a.className = 'card';
+    a.href = `/artist?id=${artist.id}`;
+
+    const img = document.createElement('img');
+    img.src = artist.image;
+    img.alt = artist.name;
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = artist.name;
+
+    const pCreation = document.createElement('p');
+    pCreation.textContent = `Основана: ${artist.creationDate}`;
+
+    const pAlbum = document.createElement('p');
+    const span = document.createElement('span');
+    span.className = 'js-date';
+    span.dataset.raw = artist.firstAlbum;
+    span.textContent = artist.firstAlbum;
+    pAlbum.textContent = 'Первый альбом: ';
+    pAlbum.appendChild(span);
+
+    body.appendChild(h2);
+    body.appendChild(pCreation);
+    body.appendChild(pAlbum);
+    a.appendChild(img);
+    a.appendChild(body);
+    return a;
+  }
+
+  function renderResults(artists) {
+    const grid = document.getElementById('grid');
+    const count = document.getElementById('resultsCount');
+
+    grid.innerHTML = '';
+
+    if (!artists || artists.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'По вашим фильтрам ничего не найдено. Попробуйте изменить параметры.';
+      grid.appendChild(empty);
+      count.textContent = 'Найдено: 0';
+      return;
+    }
+
+    artists.forEach(artist => grid.appendChild(renderCard(artist)));
+    applyFormatting(grid);
+    count.textContent = `Найдено: ${artists.length}`;
+  }
+
+  /* ============================================================
+     ДВОЙНОЙ СЛАЙДЕР: держим левый бегунок не правее правого
+     ============================================================ */
+
+  function wireDualSlider(minEl, maxEl, minLabel, maxLabel, fillEl, formatValue, onChange) {
+    function updateFill() {
+      const rangeMin = Number(minEl.min);
+      const rangeMax = Number(minEl.max);
+      const span = rangeMax - rangeMin || 1; // защита от деления на 0, если min === max
+
+      const minPercent = ((Number(minEl.value) - rangeMin) / span) * 100;
+      const maxPercent = ((Number(maxEl.value) - rangeMin) / span) * 100;
+
+      fillEl.style.left = `${minPercent}%`;
+      fillEl.style.width = `${maxPercent - minPercent}%`;
+    }
+
+    function updateLabels() {
+      minLabel.textContent = formatValue(minEl.value);
+      maxLabel.textContent = formatValue(maxEl.value);
+    }
+
+    function sync() {
+      if (Number(minEl.value) > Number(maxEl.value)) {
+        minEl.value = maxEl.value;
+      }
+      updateLabels();
+      updateFill();
+      onChange();
+    }
+    minEl.addEventListener('input', sync);
+    maxEl.addEventListener('input', sync);
+
+    // при инициализации выставляем лейблы и заливку сразу,
+    // но БЕЗ onChange — иначе это лишний fetch к серверу на пустом месте
+    updateLabels();
+    updateFill();
+
+    return sync;
+  }
+
+  /* ============================================================
+     DEBOUNCE — не дёргаем сервер на каждое микро-движение слайдера
+     ============================================================ */
+
+  function debounce(fn, delay) {
+    let timer = null;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  /* ============================================================
+     ОСНОВНАЯ ЛОГИКА ФИЛЬТРОВ
+     ============================================================ */
+
+  const MEMBER_RANGES = [
+    { label: '1–2', min: 1, max: 2 },
+    { label: '3–4', min: 3, max: 4 },
+    { label: '5–6', min: 5, max: 6 },
+    { label: '7+', min: 7, max: 99 },
+  ];
+
+  let albumMinTimestamp = 0;
+  let albumMaxTimestamp = 0;
+
+  function buildMembersCheckboxes() {
+    const container = document.getElementById('membersGroup');
+    MEMBER_RANGES.forEach((range, i) => {
+      const row = document.createElement('label');
+      row.className = 'checkbox-row';
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.className = 'members-checkbox';
+      input.dataset.min = range.min;
+      input.dataset.max = range.max;
+      input.id = `members-${i}`;
+
+      const span = document.createElement('span');
+      span.textContent = range.label;
+
+      row.appendChild(input);
+      row.appendChild(span);
+      container.appendChild(row);
+
+      input.addEventListener('change', runFilters);
+    });
+  }
+
+  function buildLocationCheckboxes(locations) {
+    const container = document.getElementById('locationList');
+    locations.forEach((loc, i) => {
+      const row = document.createElement('label');
+      row.className = 'checkbox-row';
+      row.dataset.locationText = loc.toLowerCase();
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.className = 'location-checkbox';
+      input.value = loc;
+      input.id = `location-${i}`;
+
+      const span = document.createElement('span');
+      span.textContent = formatLocation(loc);
+
+      row.appendChild(input);
+      row.appendChild(span);
+      container.appendChild(row);
+
+      input.addEventListener('change', runFilters);
+    });
+  }
+
+  function wireLocationSearch() {
+    const search = document.getElementById('locationSearch');
+    const rows = () => document.querySelectorAll('#locationList .checkbox-row');
+
+    search.addEventListener('input', debounce(() => {
+      const query = search.value.trim().toLowerCase();
+      rows().forEach(row => {
+        const matches = row.dataset.locationText.includes(query);
+        row.style.display = matches ? 'flex' : 'none';
+      });
+    }, 150));
+  }
+
+  // Собирает текущее состояние всех фильтров в query-параметры
+  // и делает запрос к /api/filter
+  function buildQuery() {
+    const params = new URLSearchParams();
+
+    params.set('creation_min', document.getElementById('creationMin').value);
+    params.set('creation_max', document.getElementById('creationMax').value);
+
+    const albumMinDate = new Date(Number(document.getElementById('albumMin').value));
+    const albumMaxDate = new Date(Number(document.getElementById('albumMax').value));
+    params.set('album_min', toDDMMYYYY(albumMinDate));
+    params.set('album_max', toDDMMYYYY(albumMaxDate));
+
+    const checkedMembers = [...document.querySelectorAll('.members-checkbox:checked')];
+    if (checkedMembers.length > 0) {
+      const mins = checkedMembers.map(el => Number(el.dataset.min));
+      const maxs = checkedMembers.map(el => Number(el.dataset.max));
+      params.set('members_min', Math.min(...mins));
+      params.set('members_max', Math.max(...maxs));
+    }
+
+    const checkedLocations = [...document.querySelectorAll('.location-checkbox:checked')]
+      .map(el => el.value);
+    if (checkedLocations.length > 0) {
+      params.set('locations', checkedLocations.join(','));
+    }
+
+    return params;
+  }
+
+  const runFilters = debounce(async function () {
+    const params = buildQuery();
+    try {
+      const res = await fetch(`/api/filter?${params.toString()}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        console.error('Ошибка фильтрации', res.status, body);
+        return;
+      }
+      const artists = await res.json();
+      renderResults(artists);
+    } catch (err) {
+      console.error('Не удалось получить данные с сервера', err);
+    }
+  }, 250);
+
+  /* ============================================================
+     ИНИЦИАЛИЗАЦИЯ: тянем /api/filters/meta, настраиваем слайдеры
+     ============================================================ */
+
+  async function init() {
+    // сначала форматируем карточки, отрендеренные Go при первой загрузке
+    applyFormatting(document);
+
+    let meta;
+    try {
+      const res = await fetch('/api/filters/meta');
+      meta = await res.json();
+    } catch (err) {
+      console.error('Не удалось загрузить границы фильтров', err);
+      return;
+    }
+
+    // --- слайдер: год основания ---
+    const creationMin = document.getElementById('creationMin');
+    const creationMax = document.getElementById('creationMax');
+    [creationMin, creationMax].forEach(el => {
+      el.min = meta.creation_min;
+      el.max = meta.creation_max;
+    });
+    creationMin.value = meta.creation_min;
+    creationMax.value = meta.creation_max;
+
+    wireDualSlider(
+      creationMin, creationMax,
+      document.getElementById('creationMinLabel'),
+      document.getElementById('creationMaxLabel'),
+      document.getElementById('creationFill'),
+      v => v,
+      runFilters
+    );
+
+    // --- слайдер: дата первого альбома (работаем в timestamp'ах) ---
+    albumMinTimestamp = parseDDMMYYYY(meta.album_min).getTime();
+    albumMaxTimestamp = parseDDMMYYYY(meta.album_max).getTime();
+
+    const albumMin = document.getElementById('albumMin');
+    const albumMax = document.getElementById('albumMax');
+    [albumMin, albumMax].forEach(el => {
+      el.min = albumMinTimestamp;
+      el.max = albumMaxTimestamp;
+    });
+    albumMin.value = albumMinTimestamp;
+    albumMax.value = albumMaxTimestamp;
+
+    wireDualSlider(
+      albumMin, albumMax,
+      document.getElementById('albumMinLabel'),
+      document.getElementById('albumMaxLabel'),
+      document.getElementById('albumFill'),
+      v => new Date(Number(v)).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      runFilters
+    );
+
+    // --- чекбоксы: участники ---
+    buildMembersCheckboxes();
+
+    // --- чекбоксы: локации + поиск ---
+    buildLocationCheckboxes(meta.locations || []);
+    wireLocationSearch();
+
+    // --- сброс фильтров ---
+    document.getElementById('resetFilters').addEventListener('click', () => {
+      creationMin.value = meta.creation_min;
+      creationMax.value = meta.creation_max;
+      document.getElementById('creationMinLabel').textContent = meta.creation_min;
+      document.getElementById('creationMaxLabel').textContent = meta.creation_max;
+
+      albumMin.value = albumMinTimestamp;
+      albumMax.value = albumMaxTimestamp;
+      document.getElementById('albumMinLabel').textContent = formatDate(meta.album_min);
+      document.getElementById('albumMaxLabel').textContent = formatDate(meta.album_max);
+
+      document.querySelectorAll('.members-checkbox:checked').forEach(el => el.checked = false);
+      document.querySelectorAll('.location-checkbox:checked').forEach(el => el.checked = false);
+      document.getElementById('locationSearch').value = '';
+      document.querySelectorAll('#locationList .checkbox-row').forEach(row => row.style.display = 'flex');
+
+      runFilters();
+    });
+
+    // изначальный счётчик — по карточкам, отрендеренным Go при первой загрузке
+    document.getElementById('resultsCount').textContent =
+      `Найдено: ${document.querySelectorAll('#grid .card').length}`;
+  }
+
+  init();
 </script>
 </html>

@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Index struct {
 	Artists   string `json:"artists"`
 	Locations string `json:"locations"`
@@ -48,4 +50,43 @@ type RelationsResponse struct {
 type ArtistRelation struct {
 	ID             int                 `json:"id"`
 	DatesLocations map[string][]string `json:"datesLocations"`
+}
+
+type FilterMeta struct {
+	CreationMin int      `json:"creation_min"`
+	CreationMax int      `json:"creation_max"`
+	AlbumMin    string   `json:"album_min"`
+	AlbumMax    string   `json:"album_max"`
+	Locations   []string `json:"locations"`
+}
+
+type FilterCriteria struct {
+	CreationMin    int
+	HasCreationMin bool
+	CreationMax    int
+	HasCreationMax bool
+
+	AlbumMin    time.Time
+	HasAlbumMin bool
+	AlbumMax    time.Time
+	HasAlbumMax bool
+
+	MembersMin    int
+	HasMembersMin bool
+	MembersMax    int
+	HasMembersMax bool
+
+	Locations []string
+}
+
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+func (c *FilterCriteria) IsEmpty() bool {
+	return !c.HasCreationMin && !c.HasCreationMax &&
+		!c.HasAlbumMin && !c.HasAlbumMax &&
+		!c.HasMembersMax && !c.HasMembersMin &&
+		len(c.Locations) == 0
 }

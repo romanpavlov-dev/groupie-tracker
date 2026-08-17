@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"groupie-tracker/backend/filters"
 	"groupie-tracker/backend/models"
 	"log"
 	"net/http"
@@ -35,6 +36,7 @@ func FetchJSON(link string, target interface{}) error {
 type Store struct {
 	views     []models.ArtistView
 	viewsByID map[int]models.ArtistView
+	meta      models.FilterMeta
 }
 
 func (s *Store) All() []models.ArtistView {
@@ -44,6 +46,10 @@ func (s *Store) All() []models.ArtistView {
 func (s *Store) ByID(id int) (models.ArtistView, bool) {
 	v, ok := s.viewsByID[id]
 	return v, ok
+}
+
+func (s *Store) Meta() models.FilterMeta {
+	return s.meta
 }
 
 func LoadStore() (*Store, error) {
@@ -145,6 +151,8 @@ func LoadStore() (*Store, error) {
 		viewsByID[a.ID] = view
 	}
 
-	return &Store{views: views, viewsByID: viewsByID}, nil
+	meta := filters.BuildFilterMeta(views)
+
+	return &Store{views: views, viewsByID: viewsByID, meta: meta}, nil
 
 }
