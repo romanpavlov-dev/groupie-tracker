@@ -23,6 +23,7 @@ func main() {
 
 	http.HandleFunc("/api/filter", h.HandleFilter)
 	http.HandleFunc("/api/filters/meta", h.HandleFilterMeta)
+	http.HandleFunc("/api/search", h.HandleSearch)
 
 	log.Fatal(http.ListenAndServe(":1010", nil))
 

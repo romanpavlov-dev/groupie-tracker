@@ -4,21 +4,15 @@ import (
 	"encoding/json"
 	"groupie-tracker/backend/api"
 	"groupie-tracker/backend/filters"
-	"groupie-tracker/backend/models"
+	"groupie-tracker/backend/search"
 	"log"
 	"net/http"
 	"strconv"
 	"text/template"
 )
 
-const baseURL = "https://groupietrackers.herokuapp.com/api"
-
 type HandlerStore struct {
 	Store *api.Store
-}
-
-type HandlerFilter struct {
-	Filters *models.FilterCriteria
 }
 
 func (h *HandlerStore) MainHandler(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +75,9 @@ func (h *HandlerStore) HandleFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	q := r.URL.Query()
 	result := filters.ApplyFilters(h.Store.All(), criteria)
+	result = search.Apply(result, q.Get("q"), q.Get("match_type"), q.Get("match_value"))
 
 	w.Header().Set("Content-type", "application/json")        //выставляем заголовки
 	if err := json.NewEncoder(w).Encode(result); err != nil { //отправляем тело ответа
@@ -90,6 +86,17 @@ func (h *HandlerStore) HandleFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func (h *HandlerStore) HandleSearch(w http.ResponseWriter, r *http.Request) {
+	suggestions := search.Suggestions(h.Store.All(), r.URL.Query().Get("q"))
+
+	w.Header().Set("Content-type", "application/json")
+	if err := json.NewEncoder(w).Encode(suggestions); err != nil {
+		log.Println(err)
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *HandlerStore) HandleFilterMeta(w http.ResponseWriter, r *http.Request) {
