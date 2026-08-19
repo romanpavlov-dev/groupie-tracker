@@ -2,7 +2,7 @@ package main
 
 import (
 	"groupie-tracker/backend/api"
-	"groupie-tracker/backend/logics"
+	"groupie-tracker/backend/handlers"
 	"log"
 	"net/http"
 )
@@ -14,10 +14,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	h := &logics.HandlerStore{Store: store}
+	h := &handlers.HandlerStore{Store: store}
 
 	http.HandleFunc("/", h.MainHandler)
 	http.HandleFunc("/artist", h.ArtistHandler)
+
+	http.HandleFunc("/api/filter", h.HandleFilter)
+	http.HandleFunc("/api/filters/meta", h.HandleFilterMeta)
 
 	log.Fatal(http.ListenAndServe(":1010", nil))
 
