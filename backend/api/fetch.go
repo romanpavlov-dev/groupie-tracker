@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"groupie-tracker/backend/filters"
+	"groupie-tracker/backend/geo"
 	"groupie-tracker/backend/models"
 	"log"
 	"net/http"
@@ -135,15 +136,24 @@ func LoadStore() (*Store, error) {
 
 	wg.Wait()
 
+	// Warm the geocoding cache with every unique raw location key
+	// BEFORE building views, so BuildMarkers() below can attach
+	// coordinates from cache alone (no network calls per artist).
+	allRawLocations := collectUniqueLocations(relationsByID)
+	geo.EnsureCache(allRawLocations)
+
 	views := make([]models.ArtistView, 0, len(artists))
 	viewsByID := make(map[int]models.ArtistView, len(artists))
 
 	for _, a := range artists {
+		dateLocation := relationsByID[a.ID]
+
 		view := models.ArtistView{
 			Artist:       a,
 			Locations:    locationmap[a.ID],
 			Dates:        datesmap[a.ID],
-			DateLocation: relationsByID[a.ID],
+			DateLocation: dateLocation,
+			Markers:      geo.BuildMarkers(dateLocation), // <-- this was missing
 		}
 
 		views = append(views, view)
@@ -155,4 +165,22 @@ func LoadStore() (*Store, error) {
 
 	return &Store{views: views, viewsByID: viewsByID, meta: meta}, nil
 
+}
+
+// collectUniqueLocations pulls every distinct raw location key out of
+// every artist's DateLocation map, so we can warm the geo cache in
+// one pass before building views.
+func collectUniqueLocations(relationsByID map[int]map[string][]string) []string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0)
+
+	for _, dateLocation := range relationsByID {
+		for raw := range dateLocation {
+			if _, ok := seen[raw]; !ok {
+				seen[raw] = struct{}{}
+				result = append(result, raw)
+			}
+		}
+	}
+	return result
 }

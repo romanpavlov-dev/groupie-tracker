@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"groupie-tracker/backend/geo"
+	"time"
+)
 
 type Index struct {
 	Artists   string `json:"artists"`
@@ -14,6 +17,7 @@ type ArtistView struct {
 	Locations    []string
 	Dates        []string
 	DateLocation map[string][]string
+	Markers      []geo.Marker
 }
 
 type Artist struct {
@@ -83,6 +87,8 @@ type FieldError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
+
+
 
 func (c *FilterCriteria) IsEmpty() bool {
 	return !c.HasCreationMin && !c.HasCreationMax &&

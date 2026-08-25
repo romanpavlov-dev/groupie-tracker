@@ -1,7 +1,8 @@
-package search
+package tests
 
 import (
 	"groupie-tracker/backend/models"
+	"groupie-tracker/backend/search"
 	"reflect"
 	"testing"
 )
@@ -41,7 +42,7 @@ func sampleArtists() []models.ArtistView {
 	}
 }
 
-func suggestionTypes(suggestions []Suggestion, text string) []string {
+func suggestionTypes(suggestions []search.Suggestion, text string) []string {
 	var types []string
 	for _, s := range suggestions {
 		if s.Text == text {
@@ -51,34 +52,34 @@ func suggestionTypes(suggestions []Suggestion, text string) []string {
 	return types
 }
 
-func findSuggestion(suggestions []Suggestion, text, typ string) (Suggestion, bool) {
+func findSuggestion(suggestions []search.Suggestion, text, typ string) (search.Suggestion, bool) {
 	for _, s := range suggestions {
 		if s.Text == text && s.Type == typ {
 			return s, true
 		}
 	}
-	return Suggestion{}, false
+	return search.Suggestion{}, false
 }
 
 func TestSuggestionsEmptyQueryReturnsNone(t *testing.T) {
-	got := Suggestions(sampleArtists(), "   ")
+	got := search.Suggestions(sampleArtists(), "   ")
 	if len(got) != 0 {
 		t.Fatalf("empty query should return no suggestions, got %d", len(got))
 	}
 }
 
 func TestSuggestionsAreCaseInsensitive(t *testing.T) {
-	got := Suggestions(sampleArtists(), "FREDDIE")
-	if _, ok := findSuggestion(got, "Freddie Mercury", TypeMember); !ok {
+	got := search.Suggestions(sampleArtists(), "FREDDIE")
+	if _, ok := findSuggestion(got, "Freddie Mercury", search.TypeMember); !ok {
 		t.Fatalf("expected Freddie Mercury as member, got %#v", got)
 	}
 }
 
 func TestSuggestionsIdentifyArtistAndMemberSeparately(t *testing.T) {
-	got := Suggestions(sampleArtists(), "phil")
+	got := search.Suggestions(sampleArtists(), "phil")
 	types := suggestionTypes(got, "Phil Collins")
 
-	want := []string{TypeArtistBand, TypeMember}
+	want := []string{search.TypeArtistBand, search.TypeMember}
 	if !reflect.DeepEqual(types, want) {
 		t.Fatalf("Phil Collins types = %v, want %v", types, want)
 	}
@@ -92,16 +93,16 @@ func TestSuggestionsCoverAllSearchCases(t *testing.T) {
 		text  string
 		typ   string
 	}{
-		{"queen", "Queen", TypeArtistBand},
-		{"brian", "Brian May", TypeMember},
-		{"paris", "paris-france", TypeLocation},
-		{"1973", "13-07-1973", TypeFirstAlbumDate},
-		{"1960", "1960", TypeCreationDate},
+		{"queen", "Queen", search.TypeArtistBand},
+		{"brian", "Brian May", search.TypeMember},
+		{"paris", "paris-france", search.TypeLocation},
+		{"1973", "13-07-1973", search.TypeFirstAlbumDate},
+		{"1960", "1960", search.TypeCreationDate},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.typ, func(t *testing.T) {
-			got := Suggestions(views, tt.query)
+			got := search.Suggestions(views, tt.query)
 			if _, ok := findSuggestion(got, tt.text, tt.typ); !ok {
 				t.Fatalf("query %q: missing %#v / %#v in %#v", tt.query, tt.text, tt.typ, got)
 			}
@@ -110,8 +111,8 @@ func TestSuggestionsCoverAllSearchCases(t *testing.T) {
 }
 
 func TestSuggestionsGroupDuplicateLocations(t *testing.T) {
-	got := Suggestions(sampleArtists(), "london")
-	s, ok := findSuggestion(got, "london-uk", TypeLocation)
+	got := search.Suggestions(sampleArtists(), "london")
+	s, ok := findSuggestion(got, "london-uk", search.TypeLocation)
 	if !ok {
 		t.Fatal("expected london-uk location suggestion")
 	}
@@ -121,21 +122,21 @@ func TestSuggestionsGroupDuplicateLocations(t *testing.T) {
 }
 
 func TestSuggestionsMatchNormalizedLocation(t *testing.T) {
-	got := Suggestions(sampleArtists(), "new york")
-	if _, ok := findSuggestion(got, "new_york-usa", TypeLocation); !ok {
+	got := search.Suggestions(sampleArtists(), "new york")
+	if _, ok := findSuggestion(got, "new_york-usa", search.TypeLocation); !ok {
 		t.Fatalf("expected new_york-usa for query 'new york', got %#v", got)
 	}
 }
 
 func TestApplyFiltersArtistsByQuery(t *testing.T) {
-	got := Apply(sampleArtists(), "beatles", "", "")
+	got := search.Apply(sampleArtists(), "beatles", "", "")
 	if len(got) != 1 || got[0].Name != "The Beatles" {
 		t.Fatalf("query beatles: got %#v", names(got))
 	}
 }
 
 func TestApplyExactMemberKeepsOnlyMatchingArtists(t *testing.T) {
-	got := Apply(sampleArtists(), "phil", TypeMember, "Phil Collins")
+	got := search.Apply(sampleArtists(), "phil", search.TypeMember, "Phil Collins")
 	if len(got) != 1 || got[0].ID != 2 {
 		t.Fatalf("exact member match: got %#v", names(got))
 	}
@@ -143,7 +144,7 @@ func TestApplyExactMemberKeepsOnlyMatchingArtists(t *testing.T) {
 
 func TestApplyEmptyQueryKeepsAll(t *testing.T) {
 	views := sampleArtists()
-	got := Apply(views, "  ", "", "")
+	got := search.Apply(views, "  ", "", "")
 	if len(got) != len(views) {
 		t.Fatalf("empty query should keep all artists, got %d", len(got))
 	}

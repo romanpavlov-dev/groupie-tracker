@@ -110,3 +110,27 @@ func (h *HandlerStore) HandleFilterMeta(w http.ResponseWriter, r *http.Request) 
 	}
 
 }
+
+func (h *HandlerStore) ArtistLocationsHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+
+	view, ok := h.Store.ByID(id)
+	if !ok {
+		http.Error(w, "no matches", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-type", "application/json")
+	if err := json.NewEncoder(w).Encode(view.Markers); err != nil {
+		log.Println(err)
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
