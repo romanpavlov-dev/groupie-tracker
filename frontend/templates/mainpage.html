@@ -26,7 +26,101 @@
 
     h1 {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 18px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .search-wrap {
+      position: relative;
+      max-width: 1300px;
+      margin: 0 auto 24px;
+    }
+
+    .artist-search {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .artist-search:focus {
+      outline: 2px solid #2f6fed;
+      outline-offset: 1px;
+      border-color: #2f6fed;
+    }
+
+    .search-suggestions {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 20;
+      margin: 0;
+      padding: 6px 0;
+      list-style: none;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .search-suggestions[hidden] {
+      display: none;
+    }
+
+    .search-suggestion {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      padding: 10px 14px;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    .search-suggestion:hover,
+    .search-suggestion.is-active {
+      background: #eaf1ff;
+    }
+
+    .search-suggestion:focus {
+      outline: none;
+      background: #eaf1ff;
+    }
+
+    .suggestion-text {
+      font-size: 15px;
+    }
+
+    .suggestion-type {
+      flex-shrink: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #2f6fed;
+      background: #eaf1ff;
+      padding: 2px 8px;
+      border-radius: 10px;
     }
 
     /* ---------- ОБЩАЯ ОБЁРТКА: фильтры слева, карточки справа ---------- */
@@ -300,6 +394,24 @@
 
   <h1>Артисты</h1>
 
+  <div class="search-wrap">
+    <label class="sr-only" for="artistSearch">Поиск артиста, участника, локации или даты</label>
+    <input
+      type="search"
+      id="artistSearch"
+      class="artist-search"
+      placeholder="Поиск: артист, участник, локация, дата альбома или основание..."
+      autocomplete="off"
+      spellcheck="false"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-expanded="false"
+      aria-controls="searchSuggestions"
+      aria-haspopup="listbox"
+    >
+    <ul id="searchSuggestions" class="search-suggestions" role="listbox" hidden></ul>
+  </div>
+
   <div class="layout">
 
     <!-- ============ ПАНЕЛЬ ФИЛЬТРОВ ============ -->
@@ -476,7 +588,7 @@
     if (!artists || artists.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
-      empty.textContent = 'По вашим фильтрам ничего не найдено. Попробуйте изменить параметры.';
+      empty.textContent = 'По поиску и фильтрам ничего не найдено. Попробуйте изменить запрос.';
       grid.appendChild(empty);
       count.textContent = 'Найдено: 0';
       return;
@@ -539,6 +651,174 @@
       timer = setTimeout(() => fn.apply(this, args), delay);
     };
   }
+
+  /* ============================================================
+     ПОИСКОВАЯ СТРОКА + ПОДСКАЗКИ С ТИПОМ
+     ============================================================ */
+
+  let selectedMatch = null;
+  let suggestions = [];
+  let activeSuggestion = -1;
+
+  const suggestionDisplay = (item) => {
+    if (item.type === 'location') {
+      return formatLocation(item.text);
+    }
+    if (item.type === 'first album date') {
+      return formatDate(item.text);
+    }
+    return item.text;
+  };
+
+  const closeSuggestions = () => {
+    const list = document.getElementById('searchSuggestions');
+    const input = document.getElementById('artistSearch');
+    list.hidden = true;
+    list.innerHTML = '';
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    activeSuggestion = -1;
+    suggestions = [];
+  };
+
+  const highlightSuggestion = (index) => {
+    const buttons = [...document.querySelectorAll('.search-suggestion')];
+    buttons.forEach((btn, i) => {
+      const isActive = i === index;
+      btn.classList.toggle('is-active', isActive);
+      if (isActive) {
+        document.getElementById('artistSearch').setAttribute('aria-activedescendant', btn.id);
+        btn.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  };
+
+  const handleSuggestionSelect = (item) => {
+    const input = document.getElementById('artistSearch');
+    selectedMatch = { type: item.type, value: item.text };
+    input.value = suggestionDisplay(item);
+    closeSuggestions();
+    runFilters();
+  };
+
+  const renderSuggestions = (items) => {
+    const list = document.getElementById('searchSuggestions');
+    const input = document.getElementById('artistSearch');
+    suggestions = items || [];
+    activeSuggestion = -1;
+    list.innerHTML = '';
+
+    if (suggestions.length === 0) {
+      closeSuggestions();
+      return;
+    }
+
+    suggestions.forEach((item, index) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'presentation');
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'search-suggestion';
+      button.id = `search-option-${index}`;
+      button.setAttribute('role', 'option');
+      button.setAttribute('aria-selected', 'false');
+      button.setAttribute(
+        'aria-label',
+        `${suggestionDisplay(item)} - ${item.type}`
+      );
+
+      const text = document.createElement('span');
+      text.className = 'suggestion-text';
+      text.textContent = suggestionDisplay(item);
+
+      const type = document.createElement('span');
+      type.className = 'suggestion-type';
+      type.textContent = item.type;
+
+      button.appendChild(text);
+      button.appendChild(type);
+      button.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        handleSuggestionSelect(item);
+      });
+
+      li.appendChild(button);
+      list.appendChild(li);
+    });
+
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  };
+
+  const fetchSuggestions = async (query) => {
+    if (!query) {
+      closeSuggestions();
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      if (!res.ok) {
+        closeSuggestions();
+        return;
+      }
+      renderSuggestions(await res.json());
+    } catch (err) {
+      console.error('Не удалось получить подсказки', err);
+      closeSuggestions();
+    }
+  };
+
+  const handleSearchInput = debounce(() => {
+    const query = document.getElementById('artistSearch').value.trim();
+    selectedMatch = null;
+    fetchSuggestions(query);
+    runFilters();
+  }, 200);
+
+  const handleSearchKeyDown = (event) => {
+    const list = document.getElementById('searchSuggestions');
+    if (list.hidden || suggestions.length === 0) {
+      if (event.key === 'Escape') {
+        closeSuggestions();
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      activeSuggestion = (activeSuggestion + 1) % suggestions.length;
+      highlightSuggestion(activeSuggestion);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      activeSuggestion = activeSuggestion <= 0 ? suggestions.length - 1 : activeSuggestion - 1;
+      highlightSuggestion(activeSuggestion);
+      return;
+    }
+
+    if (event.key === 'Enter' && activeSuggestion >= 0) {
+      event.preventDefault();
+      handleSuggestionSelect(suggestions[activeSuggestion]);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      closeSuggestions();
+    }
+  };
+
+  const wireArtistSearch = () => {
+    const input = document.getElementById('artistSearch');
+    input.addEventListener('input', handleSearchInput);
+    input.addEventListener('keydown', handleSearchKeyDown);
+    input.addEventListener('blur', () => {
+      setTimeout(closeSuggestions, 120);
+    });
+  };
 
   /* ============================================================
      ОСНОВНАЯ ЛОГИКА ФИЛЬТРОВ
@@ -642,6 +922,15 @@
       params.set('locations', checkedLocations.join(','));
     }
 
+    const query = document.getElementById('artistSearch').value.trim();
+    if (query) {
+      params.set('q', query);
+    }
+    if (selectedMatch) {
+      params.set('match_type', selectedMatch.type);
+      params.set('match_value', selectedMatch.value);
+    }
+
     return params;
   }
 
@@ -725,6 +1014,7 @@
     // --- чекбоксы: локации + поиск ---
     buildLocationCheckboxes(meta.locations || []);
     wireLocationSearch();
+    wireArtistSearch();
 
     // --- сброс фильтров ---
     document.getElementById('resetFilters').addEventListener('click', () => {
@@ -742,6 +1032,9 @@
       document.querySelectorAll('.location-checkbox:checked').forEach(el => el.checked = false);
       document.getElementById('locationSearch').value = '';
       document.querySelectorAll('#locationList .checkbox-row').forEach(row => row.style.display = 'flex');
+      document.getElementById('artistSearch').value = '';
+      selectedMatch = null;
+      closeSuggestions();
 
       runFilters();
     });

@@ -7,6 +7,8 @@ import (
 	"net/http"
 )
 
+//roma
+
 func main() {
 	store, err := api.LoadStore()
 
@@ -21,6 +23,8 @@ func main() {
 
 	http.HandleFunc("/api/filter", h.HandleFilter)
 	http.HandleFunc("/api/filters/meta", h.HandleFilterMeta)
+	http.HandleFunc("/api/search", h.HandleSearch)
+	http.HandleFunc("/api/artist/locations", h.ArtistLocationsHandler)
 
 	log.Fatal(http.ListenAndServe(":1010", nil))
 
