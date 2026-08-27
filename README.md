@@ -1,4 +1,4 @@
-# Groupie Tracker — Geolocalization
+# Groupie Tracker
 
 A web app that displays artists/bands from the [Groupie Tracker API](https://groupietrackers.herokuapp.com/api), with each artist's concert locations plotted on an interactive map.
 
