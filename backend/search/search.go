@@ -7,6 +7,7 @@ import (
 )
 
 
+
 const (
 	TypeArtistBand     = "artist/band"
 	TypeMember         = "member"
