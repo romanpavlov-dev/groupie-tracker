@@ -1,107 +1,85 @@
-# Groupie Tracker
+# Groupie Tracker — Geolocalization
 
-A small Go web application that pulls artist, concert location, concert date,
-and tour-relation data from the public [Groupie Trackers API](https://groupietrackers.herokuapp.com/api)
-and renders it as a browsable website: a main page listing all artists, and
-a detail page per artist with their info, lineup, and concert history.
+A web app that displays artists/bands from the [Groupie Tracker API](https://groupietrackers.herokuapp.com/api), with each artist's concert locations plotted on an interactive map.
 
 ## Features
 
-- Fetches artists, locations, dates, and relations from the upstream API
-  concurrently at startup.
-- In-memory store built once at server start — no database required.
-- Main page: grid/list of all artists.
-- Artist detail page: bio info, band members, and a concert list grouped
-  by location with the dates played there.
-- Raw location/date strings (e.g. `san_diego-usa`, `16-08-2019`) are
-  formatted into readable form (`San Diego, Usa`, `16 Aug 2019`) on the
-  client side with JavaScript.
+- Browse all artists with filtering (creation date, first album date, member count, location) and search
+- Per-artist page showing members, concert dates, and locations
+- **Interactive map** on each artist page with a marker for every concert location, using [Leaflet](https://leafletjs.com/) + [OpenStreetMap](https://www.openstreetmap.org/)
 
-## Project structure
-
-```
-groupie-tracker/
-├── backend/
-│   ├── models/    # Data shapes (Artist, ArtistView, API response types)
-│   ├── api/       # Fetching from the upstream API + in-memory data store
-│   └── logics/    # HTTP handlers (main page, artist detail page)
-├── frontend/
-│   └── templates/ # HTML templates (mainpage.html, artist.html)
-└── main.go        # Entry point: loads data, registers routes, starts server
-```
-
-### Package responsibilities
-
-- **`models`** — plain data structs only (`Artist`, `ArtistView`, `Index`,
-  `LocationsResponse`, `DatesResponse`, `RelationsResponse`). No logic,
-  no state.
-- **`api`** — `FetchJSON` (generic HTTP GET + JSON decode helper) and the
-  logic that loads all four upstream endpoints, joins them by artist ID,
-  and builds the in-memory `Views` / `ViewsByID` collections used to serve
-  every request.
-- **`logics`** — HTTP handlers that read from the `api` package's store
-  and render the HTML templates.
-
-## Data flow
-
-1. On startup, `main.go` calls `api.JsonToMap()`.
-2. That function fetches the API index (`/api`), then fetches artists,
-   locations, dates, and relations concurrently.
-3. Location, date, and relation data is joined to each artist by ID into
-   a single `ArtistView` per artist, and stored in two package-level
-   lookups: `Views` (slice, for listing) and `ViewsByID` (map, for direct
-   lookup by ID on the detail page).
-4. The HTTP server starts only after this data is loaded, so all handlers
-   read from data that's already fully populated.
-
-## Routes
-
-| Route      | Handler        | Description                                  |
-|------------|----------------|-----------------------------------------------|
-| `/`        | `MainHandler`  | Lists all artists                              |
-| `/artist?id={id}` | `ArtistHandler` | Shows detail page for one artist (by numeric ID) |
-
-## Running locally
-
-Requires Go installed (1.18+ recommended).
+## Getting Started
 
 ```bash
-git clone <repo-url>
-cd groupie-tracker
 go run main.go
 ```
 
-The server starts on **port 1010**:
+The server listens on `http://localhost:1010`.
+
+### ⏳ First run: wait 4–5 minutes before the maps are fully populated
+
+On the **very first run**, the app needs to convert every concert location (e.g. `"germany-mainz"`) into geographic coordinates before it can place map markers. This is done via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API, which enforces a rate limit of **~1 request per second** to stay within its free usage policy.
+
+With roughly 200–300 unique locations across all artists, this background process takes **about 4–5 minutes** to complete after the server starts.
+
+**Important:** the server itself starts immediately — you don't have to wait to browse artists, view their pages, or use search/filters. Only the **map markers** are affected: while geocoding is still in progress, an artist's map may show **fewer pins than expected, or none at all**. Simply wait a few minutes and refresh the page — markers fill in progressively as their locations finish geocoding in the background.
+
+Once this first run completes, all coordinates are saved to `location_cache.json` in the project root. **Every subsequent server restart is instant** — the app reads from this cache file instead of calling the geocoding API again.
+
+> If you delete `location_cache.json`, the next startup will need to re-geocode everything from scratch, so expect another 4–5 minute wait.
+
+## Project Structure
 
 ```
-http://localhost:1010/
+groupie-tracker/
+├── main.go                        # entrypoint, route registration
+├── location_cache.json            # auto-generated geocoding cache (git-ignored)
+├── backend/
+│   ├── api/
+│   │   └── fetch.go               # fetches & assembles data from the Groupie Tracker API
+│   ├── models/
+│   │   └── models.go               # shared data structures
+│   ├── filters/
+│   │   └── filters.go              # filter parsing & application logic
+│   ├── search/
+│   │   └── search.go               # search & autocomplete logic
+│   ├── geo/
+│   │   └── geocode.go              # location string cleaning, geocoding, caching
+│   └── handlers/
+│       └── handlers.go             # HTTP handlers
+└── frontend/
+    └── templates/
+        ├── mainpage.html            # artist list + filters
+        └── artist.html              # single artist page + map
 ```
 
-## Data source
+## How the Geolocation Feature Works
 
-All artist, location, date, and relation data comes from the public
-Groupie Trackers API:
+1. **`LoadStore()`** (in `fetch.go`) fetches artists, locations, dates, and relations from the Groupie Tracker API and builds an in-memory `Store`.
+2. **`geo.WarmCacheAsync()`** is kicked off from `main.go` right after the store loads. It runs in a background goroutine — the HTTP server starts listening immediately, without waiting for it.
+3. For each unique raw location string (e.g. `"usa-new_york"`), the background process:
+   - Cleans it into a geocoder-friendly query (`"New York, Usa"`)
+   - Sends it to Nominatim, respecting the 1 request/second rate limit
+   - Stores the returned `{lat, lon}` in an in-memory cache, saved to `location_cache.json`
+4. When a user visits an artist page, the frontend calls **`GET /api/artist/locations?id=<id>`**, which builds markers **live** from whatever is currently in the cache (a fast in-memory lookup — no network calls happen on this request path). Leaflet then renders a pin per location with a popup showing the formatted concert dates.
 
-```
-https://groupietrackers.herokuapp.com/api
-```
+This design means:
+- The server never blocks startup on external API calls
+- Live requests never hit the geocoding API directly (no rate-limit risk, no slow page loads)
+- Locations that fail to geocode (e.g. outdated or unrecognized place names) are logged and skipped rather than crashing anything
 
-No API key or authentication is required.
+## API Endpoints
 
-## Notes / known limitations
+| Endpoint | Description |
+|---|---|
+| `GET /` | Artist list page |
+| `GET /artist?id=<id>` | Single artist page with map |
+| `GET /api/filter` | Filtered/searched artist list (JSON) |
+| `GET /api/filters/meta` | Available filter ranges/options (JSON) |
+| `GET /api/search` | Search suggestions (JSON) |
+| `GET /api/artist/locations?id=<id>` | Concert location markers for one artist (JSON) |
 
-- Data is loaded once at startup and cached in memory for the lifetime of
-  the server process — it does not auto-refresh. Restart the server to
-  pick up upstream changes.
-- Location/date formatting happens client-side in JavaScript rather than
-  on the server, so raw values are briefly visible before formatting runs.
-- Search and filtering (by artist name, location, or date/year) are
-  planned but not yet implemented.
+## Notes
 
-## Possible next steps
-
-- Add search bar (by artist name) and filters (by location, by
-  creation/first-album year, by concert date range).
-- Add a `/reload` endpoint or periodic refresh if upstream data needs to
-  stay current without a server restart.
-- Add basic tests for the data-loading and formatting logic.
+- Geocoding uses [Nominatim](https://nominatim.openstreetmap.org/), a free service — no API key required, but usage is rate-limited per their [usage policy](https://operations.osmfoundation.org/policies/nominatim/).
+- Coordinates are cached indefinitely in `location_cache.json`, since concert city locations don't change.
