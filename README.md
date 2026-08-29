@@ -1,4 +1,4 @@
-# Groupie Tracker
+# Groupie Tracker — Geolocalization
 
 A web app that displays artists/bands from the [Groupie Tracker API](https://groupietrackers.herokuapp.com/api), with each artist's concert locations plotted on an interactive map.
 
@@ -18,7 +18,7 @@ The server listens on `http://localhost:1010`.
 
 ### ⏳ First run: wait 4–5 minutes before the maps are fully populated
 
-On the **very first run**, the app needs to convert every concert location (e.g. `"germany-mainz"`) into geographic coordinates before it can place map markers. This is done via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API, which enforces a rate limit of **~1 request per second** to stay within its free usage policy.
+On the **very first run**, the app needs to convert every concert location (e.g. `"mainz-germany"`) into geographic coordinates before it can place map markers. This is done via the [Nominatim](https://nominatim.openstreetmap.org/) geocoding API, which enforces a rate limit of **~1 request per second** to stay within its free usage policy.
 
 With roughly 200–300 unique locations across all artists, this background process takes **about 4–5 minutes** to complete after the server starts.
 
@@ -44,7 +44,7 @@ groupie-tracker/
 │   ├── search/
 │   │   └── search.go               # search & autocomplete logic
 │   ├── geo/
-│   │   └── geocode.go              # location string cleaning, geocoding, caching
+│   │   └── geo.go                  # location string cleaning, geocoding, caching
 │   └── handlers/
 │       └── handlers.go             # HTTP handlers
 └── frontend/
@@ -56,8 +56,8 @@ groupie-tracker/
 ## How the Geolocation Feature Works
 
 1. **`LoadStore()`** (in `fetch.go`) fetches artists, locations, dates, and relations from the Groupie Tracker API and builds an in-memory `Store`.
-2. **`geo.WarmCacheAsync()`** is kicked off from `main.go` right after the store loads. It runs in a background goroutine — the HTTP server starts listening immediately, without waiting for it.
-3. For each unique raw location string (e.g. `"usa-new_york"`), the background process:
+2. **`geo.EnsureCache()`** runs from `LoadStore()` after the store loads.
+3. For each unique raw location string (e.g. `"new_york-usa"`), the process:
    - Cleans it into a geocoder-friendly query (`"New York, Usa"`)
    - Sends it to Nominatim, respecting the 1 request/second rate limit
    - Stores the returned `{lat, lon}` in an in-memory cache, saved to `location_cache.json`
