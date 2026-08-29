@@ -40,6 +40,20 @@ type Store struct {
 	meta      models.FilterMeta
 }
 
+func NewStore(views []models.ArtistView) *Store { //why do we need this?
+	viewsByID := make(map[int]models.ArtistView, len(views))
+
+	for _, view := range views {
+		viewsByID[view.ID] = view
+	}
+
+	return &Store{
+		views:     views,
+		viewsByID: viewsByID,
+		meta:      filters.BuildFilterMeta(views),
+	}
+}
+
 func (s *Store) All() []models.ArtistView {
 	return s.views
 }
@@ -73,11 +87,14 @@ func LoadStore() (*Store, error) {
 	}
 	wg.Add(4)
 
+	errs := make(chan error, 4)
+
 	go func() {
 		defer wg.Done()
 		if err := FetchJSON(index.Artists, &artists); err != nil {
 			log.Println(err)
 
+			errs <- fmt.Errorf("fetch artists: %w", err)
 			return
 		}
 	}()
@@ -87,6 +104,7 @@ func LoadStore() (*Store, error) {
 		if err := FetchJSON(index.Locations, &location); err != nil {
 			log.Println(err)
 
+			errs <- fmt.Errorf("fetch locations: %w", err)
 			return
 		}
 	}()
@@ -96,6 +114,7 @@ func LoadStore() (*Store, error) {
 		if err := FetchJSON(index.Dates, &dates); err != nil {
 			log.Println(err)
 
+			errs <- fmt.Errorf("fetch dates: %w", err)
 			return
 		}
 	}()
@@ -104,37 +123,34 @@ func LoadStore() (*Store, error) {
 		defer wg.Done()
 		if err := FetchJSON(index.Relation, &relations); err != nil {
 			log.Println(err)
+
+			errs <- fmt.Errorf("fetch relations: %w", err)
 			return
 		}
 	}()
 
 	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		return nil, err
+	}
 
 	datesmap := make(map[int][]string)
 	locationmap := make(map[int][]string)
 	relationsByID := make(map[int]map[string][]string)
 
-	wg.Add(3)
-	go func() {
-		for _, d := range dates.Index { //вот тут можно применить горутины будто бы
-			datesmap[d.ID] = d.Dates
-		}
-		wg.Done()
-	}()
-	go func() {
-		for _, x := range location.Index {
-			locationmap[x.ID] = x.Locations
-		}
-		wg.Done()
-	}()
-	go func() {
-		for _, x := range relations.Index {
-			relationsByID[x.ID] = x.DatesLocations
-		}
-		wg.Done()
-	}()
+	for _, d := range dates.Index { //вот тут можно применить горутины будто бы
+		datesmap[d.ID] = d.Dates
+	}
 
-	wg.Wait()
+	for _, x := range location.Index {
+		locationmap[x.ID] = x.Locations
+	}
+
+	for _, x := range relations.Index {
+		relationsByID[x.ID] = x.DatesLocations
+	}
 
 	// Warm the geocoding cache with every unique raw location key
 	// BEFORE building views, so BuildMarkers() below can attach
@@ -153,7 +169,7 @@ func LoadStore() (*Store, error) {
 			Locations:    locationmap[a.ID],
 			Dates:        datesmap[a.ID],
 			DateLocation: dateLocation,
-			Markers:      geo.BuildMarkers(dateLocation), // <-- this was missing
+			Markers:      geo.BuildMarkers(dateLocation), 
 		}
 
 		views = append(views, view)
