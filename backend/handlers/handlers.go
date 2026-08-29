@@ -12,10 +12,44 @@ import (
 )
 
 type HandlerStore struct {
-	Store *api.Store
+	Store      *api.Store
+	StartupErr error
+}
+
+func (h *HandlerStore) requireGET(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "Method is not allowed", http.StatusMethodNotAllowed)
+		return false
+	}
+
+	return true
+}
+
+func (h *HandlerStore) requireStore(w http.ResponseWriter) bool {
+	if h.StartupErr != nil || h.Store == nil {
+		http.Error(w, "Failed to load application data", http.StatusInternalServerError)
+		return false
+	}
+
+	return true
 }
 
 func (h *HandlerStore) MainHandler(w http.ResponseWriter, r *http.Request) {
+
+	if !h.requireGET(w, r) {
+		return
+	}
+
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	if !h.requireStore(w) {
+		return
+	}
+
 	tmp, err := template.ParseFiles("frontend/templates/mainpage.html")
 	if err != nil {
 		http.Error(w, "Ошибка парсинга", http.StatusInternalServerError)
@@ -32,17 +66,26 @@ func (h *HandlerStore) MainHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *HandlerStore) ArtistHandler(w http.ResponseWriter, r *http.Request) {
 
+	if !h.requireGET(w, r) {
+		return
+	}
+
+	if !h.requireStore(w) {
+		return
+	}
+
 	idStr := r.URL.Query().Get("id")
 
 	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		log.Println(err)
+
+	if err != nil || id <= 0 || idStr == "" {
+		http.Error(w, "Invalid id", http.StatusBadRequest)
 		return
 	}
 
 	view, ok := h.Store.ByID(id)
 	if !ok {
-		http.Error(w, "no mathces", http.StatusInternalServerError)
+		http.Error(w, "Artist not found", http.StatusNotFound)
 		log.Println(err)
 		return
 	}
@@ -64,6 +107,15 @@ func (h *HandlerStore) ArtistHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HandlerStore) HandleFilter(w http.ResponseWriter, r *http.Request) {
+
+	if !h.requireGET(w, r) {
+		return
+	}
+
+	if !h.requireStore(w) {
+		return
+	}
+
 	criteria, errs := filters.ParseFilterCriteria(r)
 
 	if len(errs) > 0 {
@@ -89,6 +141,14 @@ func (h *HandlerStore) HandleFilter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HandlerStore) HandleSearch(w http.ResponseWriter, r *http.Request) {
+	if !h.requireGET(w, r) {
+		return
+	}
+
+	if !h.requireStore(w) {
+		return
+	}
+
 	suggestions := search.Suggestions(h.Store.All(), r.URL.Query().Get("q"))
 
 	w.Header().Set("Content-type", "application/json")
@@ -100,6 +160,15 @@ func (h *HandlerStore) HandleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HandlerStore) HandleFilterMeta(w http.ResponseWriter, r *http.Request) {
+
+	if !h.requireGET(w, r) {
+		return
+	}
+
+	if !h.requireStore(w) {
+		return
+	}
+
 	meta := h.Store.Meta()
 
 	w.Header().Set("Content-type", "application/json")
@@ -112,10 +181,18 @@ func (h *HandlerStore) HandleFilterMeta(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *HandlerStore) ArtistLocationsHandler(w http.ResponseWriter, r *http.Request) {
+	if !h.requireGET(w, r) {
+		return
+	}
+
+	if !h.requireStore(w) {
+		return
+	}
+
 	idStr := r.URL.Query().Get("id")
 
 	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	if err != nil || id <= 0 || idStr == "" {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		log.Println(err)
 		return
