@@ -95,9 +95,9 @@ var knownAliases = map[string]string{
 	"willemstad-netherlands_antilles": "Willemstad, Curacao",
 }
 
-// CleanLocation turns "germany-mainz" into "Mainz, Germany" — the
+// CleanLocation turns "mainz-germany" into "Mainz, Germany" — the
 // query string sent to the geocoder. Groupie Tracker's raw format is
-// "country-city", dash-separated, with underscores for spaces.
+// "city-country", dash-separated, with underscores for spaces.
 func CleanLocation(raw string) string {
 	if alias, ok := knownAliases[raw]; ok {
 		return alias
@@ -109,7 +109,7 @@ func CleanLocation(raw string) string {
 		parts[i] = strings.TrimSpace(parts[i])
 	}
 	if len(parts) == 2 {
-		return fmt.Sprintf("%s, %s", strings.Title(parts[1]), strings.Title(parts[0]))
+		return fmt.Sprintf("%s, %s", strings.Title(parts[0]), strings.Title(parts[1]))
 	}
 	return strings.Title(parts[0])
 }
